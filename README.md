@@ -176,8 +176,11 @@ The app runs at `http://localhost:5173`
 | Email | Password | Role |
 |-------|----------|------|
 | `sharaf@eng.must.edu.eg` | `123` | Instructor |
+| `ahmed@eng.must.edu.eg` | `123` | Instructor |
+| `bilal@eng.must.edu.eg` | `123` | Assistant |
+| `sara@eng.must.edu.eg` | `123` | Assistant |
 | `ali@eng.must.edu.eg` | `123` | Student |
-| `mona@eng.must.edu.eg` | `123` | Student |
+| `omar@eng.must.edu.eg` | `123` | Student |
 
 ---
 
