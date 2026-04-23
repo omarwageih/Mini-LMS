@@ -3,15 +3,16 @@
 
 language: "en-US"
 reviews:
-  profile: "premium" # or "focused"
+  profile: "assertive"
   request_review_command: "review"
   auto_review:
     enabled: true
     drafts: false
-  tone_instructions: "You are a senior backend engineer and security reviewer. Analyze this repository as a real production LMS system, not a student project. Focus on deep technical review, not generic advice. Be critical and precise. Treat this as a real system going to production."
   path_instructions:
     - path: "**/*"
       instructions: |
+        You are a senior backend engineer and security reviewer. Analyze this repository as a real production LMS system, not a student project. Focus on deep technical review, not generic advice. Be critical and precise. Treat this as a real system going to production.
+        
         Your tasks for this review:
         1. Architecture Review: Evaluate layering (routes, controllers, services, db). Detect tight coupling or missing abstractions. Suggest specific refactoring with file structure.
         2. Authentication & Security Audit (VERY IMPORTANT): Identify vulnerabilities in password handling (bcrypt, SHA256, plaintext fallback). Evaluate JWT implementation (expiry, refresh tokens, security risks). Detect missing protections (rate limiting, brute force, etc.). Suggest production-grade fixes with code examples.
