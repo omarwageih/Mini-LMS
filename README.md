@@ -6,6 +6,7 @@ A full-stack Learning Management System built for **Misr University for Science 
 ![React](https://img.shields.io/badge/React-v19-blue?logo=react)
 ![SQL Server](https://img.shields.io/badge/SQL_Server-2019+-red?logo=microsoftsqlserver)
 ![Tailwind](https://img.shields.io/badge/Tailwind_CSS-v4-38bdf8?logo=tailwindcss)
+[![CodeRabbit](https://img.shields.io/badge/CodeRabbit-Reviewed-success?logo=robot)](https://coderabbit.ai)
 
 ---
 
