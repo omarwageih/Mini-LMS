@@ -10,6 +10,8 @@ const assistantController = require('../controllers/assistantController');
 const courseController = require('../controllers/courseController');
 const notificationController = require('../controllers/notificationController');
 const activityLogController = require('../controllers/activityLogController');
+const adminController = require('../controllers/adminController');
+const aiController = require('../controllers/aiController');
 
 // ==========================================
 // USER ROUTES
@@ -27,6 +29,8 @@ router.get('/student/courses', verifyToken, checkRole(['Student']), studentContr
 router.get('/student/attendance', verifyToken, checkRole(['Student']), studentController.getStudentAttendance);
 router.get('/student/assignments', verifyToken, checkRole(['Student']), studentController.getStudentAssignments);
 router.get('/student/quizzes', verifyToken, checkRole(['Student']), studentController.getStudentQuizzes);
+router.get('/student/quizzes/:id/questions', verifyToken, checkRole(['Student']), studentController.getQuizQuestions);
+router.post('/student/quizzes/:id/submit', verifyToken, checkRole(['Student']), studentController.submitQuiz);
 
 // ==========================================
 // INSTRUCTOR ROUTES
@@ -54,6 +58,12 @@ router.put('/courses/:id', verifyToken, checkRole(['Instructor']), courseControl
 router.delete('/courses/:id', verifyToken, checkRole(['Instructor']), courseController.deleteCourse);
 router.post('/courses/:id/enroll', verifyToken, checkRole(['Instructor', 'Assistant']), courseController.enrollStudent);
 
+// Course Communications
+router.get('/courses/:id/announcements', verifyToken, courseController.getCourseAnnouncements);
+router.post('/courses/:id/announcements', verifyToken, checkRole(['Instructor']), courseController.createAnnouncement);
+router.get('/courses/:id/threads', verifyToken, courseController.getCourseThreads);
+router.post('/courses/:id/threads', verifyToken, courseController.createThread);
+
 // ==========================================
 // NOTIFICATION ROUTES
 // ==========================================
@@ -67,5 +77,18 @@ router.put('/notifications/read-all', verifyToken, notificationController.markAl
 // ==========================================
 router.get('/activity-log', verifyToken, checkRole(['Instructor']), activityLogController.getActivityLog);
 router.get('/activity-log/my', verifyToken, activityLogController.getMyActivity);
+
+// ==========================================
+// ADMIN ROUTES
+// ==========================================
+router.get('/admin/stats', verifyToken, checkRole(['Admin']), adminController.getSystemStats);
+router.post('/admin/users/:id/toggle-status', verifyToken, checkRole(['Admin']), adminController.toggleUserStatus);
+router.get('/admin/activity-log', verifyToken, checkRole(['Admin']), adminController.getGlobalActivityLog);
+
+// ==========================================
+// AI CHATBOT ROUTES
+// ==========================================
+router.post('/ai/chat', verifyToken, aiController.chat);
+router.get('/ai/history', verifyToken, aiController.getHistory);
 
 module.exports = router;

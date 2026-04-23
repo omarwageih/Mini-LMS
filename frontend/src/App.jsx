@@ -5,11 +5,13 @@ import RegisterPage from './pages/RegisterPage';
 import StudentDashboard from './pages/StudentDashboard';
 import InstructorDashboard from './pages/InstructorDashboard';
 import AssistantDashboard from './pages/AssistantDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import CoursesPage from './pages/CoursesPage';
 import NotificationsPage from './pages/NotificationsPage';
 import AttendancePage from './pages/AttendancePage';
 import AssignmentsPage from './pages/AssignmentsPage';
 import QuizzesPage from './pages/QuizzesPage';
+import QuizExecutionPage from './pages/QuizExecutionPage';
 import ActivityLogPage from './pages/ActivityLogPage';
 import './index.css';
 
@@ -41,6 +43,7 @@ const DashboardRedirect = () => {
     case 'Student': return <StudentDashboard />;
     case 'Instructor': return <InstructorDashboard />;
     case 'Assistant': return <AssistantDashboard />;
+    case 'Admin': return <AdminDashboard />;
     default: return <StudentDashboard />;
   }
 };
@@ -75,10 +78,13 @@ function AppRoutes() {
       <Route path="/quizzes" element={
         <ProtectedRoute roles={['Student']}><QuizzesPage /></ProtectedRoute>
       } />
+      <Route path="/quizzes/:id" element={
+        <ProtectedRoute roles={['Student']}><QuizExecutionPage /></ProtectedRoute>
+      } />
 
       {/* Instructor routes */}
       <Route path="/activity-log" element={
-        <ProtectedRoute roles={['Instructor']}><ActivityLogPage /></ProtectedRoute>
+        <ProtectedRoute roles={['Instructor', 'Admin']}><ActivityLogPage /></ProtectedRoute>
       } />
 
       {/* Catch-all redirect */}

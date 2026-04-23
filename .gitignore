@@ -36,3 +36,8 @@ npm-debug.log*
 # Temp files
 *.tmp
 *.swp
+sql_output.txt
+update_output.txt
+update_schema.sql
+frontend/lint_results.txt
+backend/uploads/

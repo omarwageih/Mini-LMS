@@ -150,3 +150,72 @@ exports.getStudentQuizzes = async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 };
+
+// GET /api/student/quizzes/:id/questions — Get questions for a quiz
+exports.getQuizQuestions = async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('QuizID', sql.Int, req.params.id)
+            .query('SELECT QuestionID, QuestionText, OptionsJSON FROM QuizQuestions WHERE QuizID = @QuizID');
+        
+        // Parse JSON options for frontend
+        const questions = result.recordset.map(q => ({
+            ...q,
+            options: JSON.parse(q.OptionsJSON)
+        }));
+
+        res.status(200).json(questions);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// POST /api/student/quizzes/:id/submit — Submit quiz answers
+exports.submitQuiz = async (req, res) => {
+    try {
+        const { answers } = req.body; // { questionID: selectedIndex }
+        const quizId = req.params.id;
+        const studentId = req.user.id;
+
+        const pool = await poolPromise;
+        const questions = await pool.request()
+            .input('QuizID', sql.Int, quizId)
+            .query('SELECT QuestionID, CorrectOption, Points FROM QuizQuestions WHERE QuizID = @QuizID');
+
+        let totalScore = 0;
+        questions.recordset.forEach(q => {
+            if (answers[q.QuestionID] === q.CorrectOption) {
+                totalScore += q.Points;
+            }
+        });
+
+        // Insert or update result
+        await pool.request()
+            .input('QuizID', sql.Int, quizId)
+            .input('StudentID', sql.Int, studentId)
+            .input('Score', sql.Decimal(5, 2), totalScore)
+            .query(`
+                MERGE Quiz_Results AS target
+                USING (SELECT @QuizID AS QuizID, @StudentID AS StudentID) AS source
+                ON target.QuizID = source.QuizID AND target.StudentID = source.StudentID
+                WHEN MATCHED THEN
+                    UPDATE SET Score = @Score, CompletedAt = GETDATE()
+                WHEN NOT MATCHED THEN
+                    INSERT (QuizID, StudentID, Score) VALUES (@QuizID, @StudentID, @Score);
+            `);
+
+        // Trigger grade sync
+        await pool.request()
+            .input('p_StudentID', sql.Int, studentId)
+            .input('p_CourseID', sql.Int, (await pool.request().input('QuizID', sql.Int, quizId).query('SELECT CourseID FROM Quizzes WHERE QuizID = @QuizID')).recordset[0].CourseID)
+            .execute('sp_SyncGrades');
+
+        res.status(200).json({ score: totalScore, message: 'Quiz submitted successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+

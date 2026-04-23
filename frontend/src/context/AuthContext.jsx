@@ -8,23 +8,10 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const decoded = jwtDecode(token);
-        // Check if token is expired
-        if (decoded.exp * 1000 < Date.now()) {
-          logout();
-        } else {
-          setUser(decoded);
-        }
-      } catch (err) {
-        logout();
-      }
-    }
-    setLoading(false);
-  }, []);
+  const logout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+  };
 
   const login = async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
@@ -39,10 +26,23 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
-  };
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        // Check if token is expired
+        if (decoded.exp * 1000 < Date.now()) {
+          logout();
+        } else {
+          setUser(decoded);
+        }
+      } catch {
+        logout();
+      }
+    }
+    setLoading(false);
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, login, register, logout, loading }}>

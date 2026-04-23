@@ -191,3 +191,74 @@ exports.enrollStudent = async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 };
+
+// ==========================================
+// ANNOUNCEMENTS
+// ==========================================
+
+exports.getCourseAnnouncements = async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('CourseID', sql.Int, req.params.id)
+            .query('SELECT A.*, U.FullName as CreatorName FROM Announcements A JOIN Users U ON A.CreatedBy = U.UserID WHERE A.CourseID = @CourseID AND A.DeletedAt IS NULL ORDER BY A.CreatedAt DESC');
+        res.status(200).json(result.recordset);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.createAnnouncement = async (req, res) => {
+    try {
+        const { title, message } = req.body;
+        const pool = await poolPromise;
+        await pool.request()
+            .input('CourseID', sql.Int, req.params.id)
+            .input('Title', sql.NVarChar, title)
+            .input('Message', sql.NVarChar, message)
+            .input('CreatedBy', sql.Int, req.user.id)
+            .query('INSERT INTO Announcements (CourseID, Title, Message, CreatedBy) VALUES (@CourseID, @Title, @Message, @CreatedBy)');
+        
+        res.status(201).json({ message: 'Announcement posted' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+// ==========================================
+// DISCUSSION FORUM
+// ==========================================
+
+exports.getCourseThreads = async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.request()
+            .input('CourseID', sql.Int, req.params.id)
+            .query('SELECT T.*, U.FullName as AuthorName FROM DiscussionThreads T JOIN Users U ON T.AuthorID = U.UserID WHERE T.CourseID = @CourseID AND T.DeletedAt IS NULL ORDER BY T.UpdatedAt DESC');
+        res.status(200).json(result.recordset);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.createThread = async (req, res) => {
+    try {
+        const { title, content } = req.body;
+        const pool = await poolPromise;
+        await pool.request()
+            .input('CourseID', sql.Int, req.params.id)
+            .input('Title', sql.NVarChar, title)
+            .input('Content', sql.NVarChar, content)
+            .input('AuthorID', sql.Int, req.user.id)
+            .query('INSERT INTO DiscussionThreads (CourseID, Title, Content, AuthorID) VALUES (@CourseID, @Title, @Content, @AuthorID)');
+        
+        res.status(201).json({ message: 'Discussion thread created' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+

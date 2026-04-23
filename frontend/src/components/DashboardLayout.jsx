@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import ChatWidget from './ChatWidget';
 import {
   LayoutDashboard, BookOpen, Users, ClipboardList, Bell,
   LogOut, Menu, X, GraduationCap, ChevronRight, Activity,
@@ -159,6 +160,8 @@ const DashboardLayout = ({ children }) => {
           {children}
         </main>
       </div>
+
+      <ChatWidget />
     </div>
   );
 };

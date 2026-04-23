@@ -1,0 +1,12 @@
+# CodeRabbit Configuration
+# For more options, visit https://docs.coderabbit.ai/getting-started/configuration/
+
+language: "en-US"
+reviews:
+  profile: "premium" # or "focused"
+  request_review_command: "review"
+  auto_review:
+    enabled: true
+    drafts: false
+chat:
+  enabled: true

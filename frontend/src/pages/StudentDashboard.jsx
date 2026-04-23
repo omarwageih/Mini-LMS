@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import DashboardLayout from '../components/DashboardLayout';
-import { BookOpen, TrendingUp, Calendar, Award, Clock, FileText } from 'lucide-react';
+import { BookOpen, TrendingUp, Calendar, Award, Clock, FileText, BarChart } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const StudentDashboard = () => {
   const [dashboard, setDashboard] = useState([]);
@@ -76,6 +77,82 @@ const StudentDashboard = () => {
               <p className="text-xs text-gray-400 mt-1">{stat.label}</p>
             </div>
           ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Chart Section */}
+          <div className="lg:col-span-2 glass-card p-6 animate-fade-in-up" style={{ opacity: 0, animationDelay: '0.4s' }}>
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-6">
+              <BarChart className="w-5 h-5 text-must-gold" /> Performance Trend
+            </h2>
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={dashboard}>
+                  <defs>
+                    <linearGradient id="gradeGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                  <XAxis 
+                    dataKey="CourseName" 
+                    stroke="#94a3b8" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false}
+                    tickFormatter={(val) => val.split(':')[0]}
+                  />
+                  <YAxis 
+                    stroke="#94a3b8" 
+                    fontSize={10} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    domain={[0, 100]}
+                  />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#0A0E1A', border: '1px solid #ffffff10', borderRadius: '12px' }}
+                    itemStyle={{ color: '#D4AF37' }}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="CourseGrade" 
+                    stroke="#D4AF37" 
+                    strokeWidth={3}
+                    fillOpacity={1} 
+                    fill="url(#gradeGradient)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="lg:col-span-1 glass-card p-6 animate-fade-in-up" style={{ opacity: 0, animationDelay: '0.5s' }}>
+            <h2 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
+              <Award className="w-5 h-5 text-emerald-400" /> Grade Metrics
+            </h2>
+            <div className="space-y-6">
+              {[
+                { label: 'Assignments', val: dashboard[0]?.AssignmentTotal || 0, max: 40, color: 'text-blue-400' },
+                { label: 'Quizzes', val: dashboard[0]?.QuizTotal || 0, max: 40, color: 'text-purple-400' },
+                { label: 'Attendance', val: dashboard[0]?.AttendanceTotal || 0, max: 20, color: 'text-emerald-400' }
+              ].map(metric => (
+                <div key={metric.label}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-400">{metric.label}</span>
+                    <span className={`font-bold ${metric.color}`}>{metric.val.toFixed(1)} / {metric.max}</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full bg-gradient-to-r ${metric.label === 'Assignments' ? 'from-blue-500 to-blue-400' : metric.label === 'Quizzes' ? 'from-purple-500 to-purple-400' : 'from-emerald-500 to-emerald-400'}`} 
+                      style={{ width: `${(metric.val / metric.max) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Courses Table */}

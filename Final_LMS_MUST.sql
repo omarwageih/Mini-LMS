@@ -31,7 +31,7 @@ CREATE TABLE Users (
     PasswordHash NVARCHAR(512) NOT NULL, -- Hashed password (never plain text)
     Phone NVARCHAR(20),
     IsActive BIT DEFAULT 1,
-    UserType NVARCHAR(20) CHECK (UserType IN (N'Instructor', N'Assistant', N'Student')),
+    UserType NVARCHAR(20) CHECK (UserType IN (N'Instructor', N'Assistant', N'Student', N'Admin')),
     CreatedAt DATETIME DEFAULT GETDATE(),
     UpdatedAt DATETIME DEFAULT GETDATE(),
     DeletedAt DATETIME NULL, -- Soft Delete
@@ -441,6 +441,70 @@ END;
 GO
 
 -- ==========================================
+-- 10.5 ADDITIONAL ENHANCEMENTS (Forums, AI, Quizzes)
+-- ==========================================
+
+CREATE TABLE Announcements (
+    AnnouncementID INT IDENTITY(1,1) PRIMARY KEY,
+    CourseID INT NOT NULL,
+    Title NVARCHAR(200) NOT NULL,
+    Message NVARCHAR(MAX) NOT NULL,
+    CreatedBy INT NOT NULL,
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    DeletedAt DATETIME NULL,
+    FOREIGN KEY (CourseID) REFERENCES Courses(CourseID),
+    FOREIGN KEY (CreatedBy) REFERENCES Users(UserID)
+);
+GO
+
+CREATE TABLE DiscussionThreads (
+    ThreadID INT IDENTITY(1,1) PRIMARY KEY,
+    CourseID INT NOT NULL,
+    Title NVARCHAR(200) NOT NULL,
+    Content NVARCHAR(MAX) NOT NULL,
+    AuthorID INT NOT NULL,
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    UpdatedAt DATETIME DEFAULT GETDATE(),
+    DeletedAt DATETIME NULL,
+    FOREIGN KEY (CourseID) REFERENCES Courses(CourseID),
+    FOREIGN KEY (AuthorID) REFERENCES Users(UserID)
+);
+GO
+
+CREATE TABLE DiscussionComments (
+    CommentID INT IDENTITY(1,1) PRIMARY KEY,
+    ThreadID INT NOT NULL,
+    Content NVARCHAR(MAX) NOT NULL,
+    AuthorID INT NOT NULL,
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    DeletedAt DATETIME NULL,
+    FOREIGN KEY (ThreadID) REFERENCES DiscussionThreads(ThreadID),
+    FOREIGN KEY (AuthorID) REFERENCES Users(UserID)
+);
+GO
+
+CREATE TABLE QuizQuestions (
+    QuestionID INT IDENTITY(1,1) PRIMARY KEY,
+    QuizID INT NOT NULL,
+    QuestionText NVARCHAR(MAX) NOT NULL,
+    OptionsJSON NVARCHAR(MAX) NOT NULL, -- JSON array of options
+    CorrectOption INT NOT NULL, -- Index of correct option
+    Points DECIMAL(5,2) DEFAULT 1.0,
+    FOREIGN KEY (QuizID) REFERENCES Quizzes(QuizID)
+);
+GO
+
+CREATE TABLE ChatHistory (
+    ChatID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT NOT NULL,
+    Role NVARCHAR(20) NOT NULL, -- 'user' or 'model'
+    Message NVARCHAR(MAX) NOT NULL,
+    Timestamp DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (UserID) REFERENCES Users(UserID)
+);
+GO
+
+-- ==========================================
 -- 11. MUST UNIVERSITY SEED DATA
 -- ==========================================
 
@@ -456,7 +520,8 @@ INSERT INTO Users (UserID, FullName, Email, PasswordHash, Phone, UserType) VALUE
 (7, N'Omar Ali', N'omar@eng.must.edu.eg', CONVERT(NVARCHAR(512), HASHBYTES('SHA2_256', N'123'), 2), N'01087654321', N'Student'),
 (8, N'Karim Zaki', N'karim@eng.must.edu.eg', CONVERT(NVARCHAR(512), HASHBYTES('SHA2_256', N'123'), 2), N'01223456789', N'Student'),
 (9, N'Nour El Din', N'nour@eng.must.edu.eg', CONVERT(NVARCHAR(512), HASHBYTES('SHA2_256', N'123'), 2), N'01134567890', N'Student'),
-(10, N'Salma Ahmed', N'salma@eng.must.edu.eg', CONVERT(NVARCHAR(512), HASHBYTES('SHA2_256', N'123'), 2), N'01545678901', N'Student');
+(10, N'Salma Ahmed', N'salma@eng.must.edu.eg', CONVERT(NVARCHAR(512), HASHBYTES('SHA2_256', N'123'), 2), N'01545678901', N'Student'),
+(11, N'Admin User', N'admin@must.edu.eg', CONVERT(NVARCHAR(512), HASHBYTES('SHA2_256', N'123'), 2), N'01000000000', N'Admin');
 SET IDENTITY_INSERT Users OFF;
 
 -- B. Subclasses
@@ -522,6 +587,17 @@ INSERT INTO Notifications (UserID, Title, Message) VALUES
 (6, N'Assignment Graded', N'Your submission for "Phase 2: ERD" has been graded. Score: 15.0/15.0'),
 (7, N'Assignment Graded', N'Your submission for "Phase 2: ERD" has been graded. Score: 13.5/15.0'),
 (6, N'New Quiz Available', N'Midterm 1 for CSE301: Database Systems is now available');
+GO
+
+-- J. Enhancements Seed Data
+INSERT INTO Announcements (CourseID, Title, Message, CreatedBy) VALUES
+(1, N'Final Project Deadline', N'Please note that the final project ERD is due next Sunday.', 1);
+
+INSERT INTO DiscussionThreads (CourseID, Title, Content, AuthorID) VALUES
+(1, N'Help with Normalization', N'Can anyone explain 3NF vs BCNF with an example?', 6);
+
+INSERT INTO QuizQuestions (QuizID, QuestionText, OptionsJSON, CorrectOption) VALUES
+(1, N'Which of the following is a primary key property?', N'["Can be null", "Must be unique", "Can have duplicates", "Optional"]', 1);
 GO
 
 -- FINAL: Run Logic Sync
