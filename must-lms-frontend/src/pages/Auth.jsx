@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, User, ShieldCheck, LogIn, ShieldPlus, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, Phone, ShieldCheck, LogIn, ShieldPlus, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
 
 const Auth = () => {
     const location = useLocation();
@@ -9,6 +9,7 @@ const Auth = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [fullName, setFullName] = useState('');
+    const [phone, setPhone] = useState('');
     const [userType, setUserType] = useState('Student');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -31,7 +32,7 @@ const Auth = () => {
         const endpoint = isLogin ? 'http://localhost:3000/api/auth/login' : 'http://localhost:3000/api/auth/register';
         const body = isLogin 
             ? { email, password } 
-            : { fullName, email, password, userType };
+            : { fullName, email, password, userType, phone };
 
         try {
             const response = await fetch(endpoint, {
@@ -166,9 +167,20 @@ const Auth = () => {
 
                                     <div className="space-y-2.5 text-left">
                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-2 italic">Institutional Role</label>
-                                        <div className="grid grid-cols-3 gap-2.5 p-1.5 bg-slate-50 dark:bg-black/20 rounded-2xl border border-slate-200 dark:border-white/5">
-                                            {['Student', 'Assistant', 'Instructor'].map((type) => (
-                                                <button key={type} type="button" onClick={() => setUserType(type)} className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-tighter transition-all ${userType === type ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-300'}`}>
+                                        <div className="relative flex p-1.5 bg-slate-50 dark:bg-black/20 rounded-2xl border border-slate-200 dark:border-white/5 overflow-hidden">
+                                            {['Student', 'Assistant'].map((type) => (
+                                                <button 
+                                                    key={type} 
+                                                    type="button" 
+                                                    onClick={() => setUserType(type)} 
+                                                    className={`relative z-10 flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-tighter transition-all duration-300 ${userType === type ? 'text-white' : 'text-slate-400 dark:text-slate-600'}`}
+                                                >
+                                                    {userType === type && (
+                                                        <motion.div 
+                                                            layoutId="roleSelector"
+                                                            className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20 z-[-1]"
+                                                        />
+                                                    )}
                                                     {type}
                                                 </button>
                                             ))}
@@ -176,6 +188,7 @@ const Auth = () => {
                                     </div>
 
                                     <ModernInput icon={<User size={18} />} label="Full Name" placeholder="Enter Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                                    <ModernInput icon={<Phone size={18} />} label="Phone Number" placeholder="01XXXXXXXXX" value={phone} onChange={(e) => setPhone(e.target.value)} />
                                 </motion.div>
                             )}
                         </AnimatePresence>
