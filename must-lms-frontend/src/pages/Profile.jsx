@@ -1,26 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    User, Mail, Phone, MapPin, 
-    Camera, Shield, GraduationCap,
-    Award, ChevronDown, Check, X,
-    Edit3, CreditCard, BookOpen, UserCheck, 
-    AtSign, Briefcase, Loader2, Sparkles
+    User, Mail, Calendar, Award,
+    Settings, Camera, Shield, GraduationCap,
+    Zap, Target, Heart, Edit2, Loader2, X
 } from 'lucide-react';
 
 const Profile = () => {
-    const [statsData, setStatsData] = useState(null);
-    const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     
-    // User state
-    const initialUser = JSON.parse(localStorage.getItem('user')) || { 
-        FullName: 'University User', 
-        UserType: 'Student', 
-        Email: 'user@must.edu',
-        Phone: '01023654765'
-    };
+    // Get user from localStorage
+    const initialUser = JSON.parse(localStorage.getItem('user')) || { FullName: 'University User', UserType: 'Student', Email: 'user@must.edu' };
     const [userData, setUserData] = useState(initialUser);
+    const user = userData; 
+
+    const handleUpdate = (e) => {
+        e.preventDefault();
+        localStorage.setItem('user', JSON.stringify(userData));
+        setIsEditing(false);
+    };
+
+    const [statsData, setStatsData] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const loadStats = async () => {
@@ -38,13 +39,8 @@ const Profile = () => {
                     const gpaItem = stats.find(s => s.label?.includes('GPA'));
                     const courseItem = stats.find(s => s.label?.includes('Course') || s.label?.includes('Section'));
                     setStatsData({
-                        gpa: gpaItem ? parseFloat(gpaItem.val) : 1.8, // Defaulting to something if null for demo
-                        courseCount: courseItem ? parseInt(courseItem.val) : 5,
-                        rank: 105,
-                        class: 4,
-                        creditHours: 51,
-                        totalCreditsReq: 182,
-                        semester: 'Spring-2026'
+                        gpa: gpaItem ? parseFloat(gpaItem.val) : 0,
+                        courseCount: courseItem ? parseInt(courseItem.val) : 0
                     });
                 }
             } catch (err) {
@@ -56,130 +52,155 @@ const Profile = () => {
         loadStats();
     }, []);
 
-    const handleUpdate = (e) => {
-        e.preventDefault();
-        // In a real app, you'd call an API here
-        localStorage.setItem('user', JSON.stringify(userData));
-        setIsEditing(false);
+    const profileDetails = {
+        Department: "Computer Engineering",
+        Level: "Level 4",
+        JoinDate: "Sep 2024",
+        TotalCredits: (statsData?.courseCount || 0) * 3
+    };
+
+    const radius = 75;
+    const circumference = 2 * Math.PI * radius;
+    const gpaValue = statsData?.gpa || 0;
+    const progressOffset = circumference - (Math.min(gpaValue, 4.0) / 4.0) * circumference;
+
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+    };
+
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: { y: 0, opacity: 1 }
     };
 
     if (loading) return (
-        <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a]">
+        <div className="min-h-screen flex items-center justify-center">
             <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: "linear" }}>
-                <Loader2 size={40} className="text-blue-500" />
+                <Loader2 size={40} className="text-[#a78bfa]" />
             </motion.div>
         </div>
     );
 
     return (
-        <div className="min-h-screen bg-[#111111] text-slate-200 pb-20 pt-4 px-4 sm:px-6">
-            <div className="max-w-md mx-auto space-y-4">
-                
-                {/* 🏷️ Header: User Identity Card (Matching Screenshot) */}
-                <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-[#2a2a2a] rounded-xl p-5 shadow-xl border border-white/5 relative overflow-hidden"
-                >
-                    <div className="flex gap-4 items-start relative z-10">
-                        {/* Avatar */}
-                        <div className="relative">
-                            <div className="w-24 h-28 rounded-xl bg-slate-800 overflow-hidden ring-2 ring-white/10">
-                                <div className="w-full h-full bg-gradient-to-br from-blue-600/40 to-indigo-600/40 flex items-center justify-center">
-                                    <span className="text-4xl font-black text-white/50">{userData.FullName?.charAt(0)}</span>
+        <motion.div
+            initial="hidden"
+            animate="visible"
+            variants={containerVariants}
+            className="min-h-screen pb-20 pt-4 px-4 sm:px-10 selection:bg-[#c084fc]/30"
+        >
+            <div className="max-w-6xl mx-auto space-y-12">
+
+                {/* 1. Elegant Header */}
+                <motion.div variants={itemVariants} className="flex flex-col md:flex-row items-center md:items-end justify-between gap-6 pt-10 border-b border-slate-100 dark:border-white/5 pb-10">
+                    <div className="flex flex-col md:flex-row items-center md:items-end gap-6 text-center md:text-left">
+                        <div className="relative group">
+                            <div className="absolute inset-[-10px] bg-gradient-to-r from-[#d8b4fe] via-[#a78bfa] to-[#818cf8] blur-2xl opacity-40 group-hover:opacity-60 transition-opacity rounded-full"></div>
+
+                            <div className="relative w-40 h-40 rounded-full bg-white dark:bg-slate-900 p-2 shadow-xl ring-1 ring-slate-200/50 dark:ring-white/5">
+                                <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center overflow-hidden">
+                                     <span className="text-6xl font-black text-white uppercase italic">
+                                        {user.FullName?.charAt(0)}
+                                    </span>
                                 </div>
                             </div>
-                            <button className="absolute -bottom-2 -right-2 p-2 bg-blue-600 rounded-full border-2 border-[#2a2a2a] shadow-lg">
-                                <Camera size={14} className="text-white" />
+                            <button className="absolute bottom-2 right-2 p-3.5 bg-white dark:bg-slate-800 text-slate-500 hover:text-[#a78bfa] rounded-full shadow-lg border border-slate-100 dark:border-white/10 hover:scale-110 active:scale-95 transition-all">
+                                <Camera size={18} />
                             </button>
                         </div>
 
-                        {/* Text Info */}
-                        <div className="flex-1 space-y-2">
-                            <h2 className="text-lg font-bold leading-tight tracking-tight">
-                                {userData.FullName}
-                            </h2>
-                            <div className="flex items-center gap-2 text-xs text-slate-400 font-bold">
-                                <CreditCard size={14} /> ID {userData.UserID || '200025960'}
-                            </div>
-                            
-                            <div className="flex items-center gap-3 pt-1">
-                                <div className="px-3 py-1 bg-yellow-400/10 border border-yellow-400/30 rounded-full flex items-center gap-1.5">
-                                    <GraduationCap size={12} className="text-yellow-400" />
-                                    <span className="text-[10px] font-black text-yellow-400 uppercase">CGPA {statsData?.gpa?.toFixed(2)}</span>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-4 text-[10px] font-black uppercase tracking-widest text-slate-500 pt-1">
-                                <span><Sparkles size={10} className="inline mr-1 text-yellow-500" /> Rank: {statsData?.rank}</span>
-                                <span>Class: {statsData?.class}</span>
+                        <div className="space-y-2.5 pb-2">
+                            <h1 className="text-4xl md:text-5xl font-black text-slate-950 dark:text-white uppercase tracking-tighter italic">
+                                {user.FullName}
+                            </h1>
+                            <div className="flex flex-wrap justify-center md:justify-start items-center gap-3">
+                                <span className="flex items-center gap-2 text-[10px] font-black text-[#a78bfa] uppercase tracking-widest bg-[#a78bfa]/10 px-4 py-1.5 rounded-full border border-[#a78bfa]/20 shadow-inner">
+                                    <Zap size={14} fill="currentColor" /> {user.UserType}
+                                </span>
+                                <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 italic">
+                                    <Target size={14} className="text-orange-300" fill="currentColor" /> {profileDetails.Department}
+                                </span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-center gap-2 text-blue-400 text-[10px] font-black uppercase tracking-widest">
-                        <MapPin size={12} /> Misr University for Science & Technology
-                    </div>
-                </motion.div>
-
-                {/* 📘 UG - Engineering Section */}
-                <Card title="UG — ENGINEERING" subtitle="Your information & status" icon={<BookOpen size={20} className="text-blue-500" />}>
-                    <div className="space-y-4 pt-4">
-                        <div className="flex justify-between items-end mb-1">
-                            <span className="text-[10px] font-black text-slate-400 uppercase">Credit Hours</span>
-                            <span className="text-[10px] font-black text-blue-500">{statsData?.creditHours} / {statsData?.totalCreditsReq}</span>
-                        </div>
-                        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                            <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: `${(statsData?.creditHours / statsData?.totalCreditsReq) * 100}%` }}
-                                className="h-full bg-blue-600"
-                            />
-                        </div>
-                        <div className="flex items-center gap-2 pt-2 text-[11px] font-bold text-slate-400">
-                            <Check size={14} className="text-emerald-500" />
-                            Current Semester: <span className="text-white ml-2">{statsData?.semester}</span>
-                        </div>
-                    </div>
-                </Card>
-
-                {/* 💰 Balance Section */}
-                <Card title="Balance" icon={<div className="p-2 bg-red-500/20 rounded-lg"><CreditCard size={18} className="text-red-500" /></div>}>
-                    <div className="flex justify-between items-center py-2">
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-2xl font-black text-red-500 leading-none">0.0</span>
-                            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">EGP</span>
-                        </div>
-                        <button className="px-5 py-2 bg-slate-800 rounded-full text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-white transition-colors border border-white/5">
-                            Details {'>'}
-                        </button>
-                    </div>
-                </Card>
-
-                {/* 📞 Contacts Toggle Section */}
-                <Card title="Contacts" collapsable defaultOpen={true} icon={<AtSign size={18} className="text-blue-500" />}>
-                    <div className="space-y-5 pt-6 pb-2">
-                         <InfoRow icon={<Phone size={16} />} text={userData.Phone || '01023654765'} />
-                         <InfoRow icon={<Mail size={16} />} text={userData.Email} />
-                         <InfoRow icon={<UserCheck size={16} />} text="Advisor: mohamed ebrahim wadaa ali" />
-                         <InfoRow icon={<Briefcase size={16} />} text="Major: Computer& Software Engineering" />
-                         <InfoRow icon={<AtSign size={16} />} text={userData.Email} />
-                    </div>
-                </Card>
-
-                {/* 🛠️ Action Buttons */}
-                <div className="grid grid-cols-2 gap-4 pt-4">
                     <button 
                         onClick={() => setIsEditing(true)}
-                        className="p-4 bg-blue-600 text-white rounded-xl font-black text-[12px] uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
+                        className="flex items-center gap-2.5 px-6 py-4 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-200 font-bold rounded-2xl text-[11px] uppercase tracking-widest shadow-lg hover:shadow-xl hover:border-slate-200 dark:hover:border-white/10 border border-slate-100 dark:border-white/5 transition-all active:scale-95"
                     >
-                        <Edit3 size={16} /> Update Info
+                        <Edit2 size={16} /> Update Info
                     </button>
-                    <button className="p-4 bg-[#2a2a2a] text-slate-400 rounded-xl font-black text-[12px] uppercase tracking-widest border border-white/5">
-                        Settings
-                    </button>
-                </div>
+                </motion.div>
 
+                {/* 2. Stats & Info Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+
+                    {/* Left Column: Academic Health */}
+                    <motion.div variants={itemVariants} className="lg:col-span-5 flex flex-col gap-10">
+                        <div className="glass-card p-10 flex flex-col items-center justify-center border border-white dark:border-white/5 shadow-2xl relative">
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-8 flex items-center gap-2">
+                                <Heart size={12} className="text-red-400" /> Academic Health
+                            </h3>
+
+                            {user.UserType === 'Student' ? (
+                                <div className="relative">
+                                    <svg className="w-52 h-52 transform -rotate-90">
+                                        <circle cx="104" cy="104" r={radius} className="stroke-slate-100 dark:stroke-white/5" strokeWidth="12" fill="transparent" />
+                                        <motion.circle
+                                            initial={{ strokeDashoffset: circumference }}
+                                            animate={{ strokeDashoffset: progressOffset }}
+                                            transition={{ duration: 2, delay: 0.5, ease: "circOut" }}
+                                            cx="104" cy="104" r={radius} stroke="url(#gpa_aurora)" strokeWidth="12" fill="transparent"
+                                            strokeDasharray={circumference} strokeLinecap="round"
+                                        />
+                                        <defs>
+                                            <linearGradient id="gpa_aurora" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                <stop offset="0%" stopColor="#d8b4fe" />
+                                                <stop offset="100%" stopColor="#818cf8" />
+                                            </linearGradient>
+                                        </defs>
+                                    </svg>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-6xl font-black text-slate-950 dark:text-white italic tracking-tighter leading-none">{gpaValue.toFixed(2)}</span>
+                                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1.5">GPA SCORE</span>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-10">
+                                    <Award size={64} className="text-[#a78bfa] mx-auto mb-4 opacity-50" />
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Teaching Staff Authority</p>
+                                </div>
+                            )}
+                            
+                            {user.UserType === 'Student' && (
+                                <div className="mt-8 px-5 py-2 bg-gradient-to-r from-[#d8b4fe] to-[#818cf8] text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl shadow-[#818cf8]/20">
+                                    {gpaValue >= 3.7 ? 'Excellent' : gpaValue >= 3.0 ? 'Very Good' : 'Academic Standing'}
+                                </div>
+                            )}
+                        </div>
+                    </motion.div>
+
+                    {/* Right Column: Identity details */}
+                    <motion.div variants={itemVariants} className="lg:col-span-7 flex flex-col gap-6 h-full">
+                        <div className="glass-card p-10 flex-1 border border-white dark:border-white/5 rounded-[2.5rem] shadow-2xl">
+                            <div className="flex items-center justify-between mb-12">
+                                <h2 className="text-xl font-black text-slate-950 dark:text-white uppercase tracking-tighter flex items-center gap-3 italic">
+                                    <Shield className="text-[#a78bfa]" size={22} /> Identity Terminal
+                                </h2>
+                                <button className="p-3 bg-slate-50 dark:bg-white/5 rounded-full text-slate-300 hover:text-[#a78bfa] transition-all shadow-inner border border-slate-100 dark:border-white/5">
+                                    <Settings size={18} />
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-12">
+                                <ModernInfoItem icon={<Mail size={20} />} label="Terminal Email" value={user.Email} />
+                                <ModernInfoItem icon={<GraduationCap size={20} />} label="Academic Level" value={profileDetails.Level} />
+                                <ModernInfoItem icon={<Calendar size={20} />} label="Join Session" value={profileDetails.JoinDate} />
+                                <ModernInfoItem icon={<Award size={20} />} label="Earned Units" value={`${profileDetails.TotalCredits} Credits`} />
+                            </div>
+                        </div>
+                    </motion.div>
+                </div>
             </div>
 
             {/* 📝 Update Info Modal */}
@@ -195,11 +216,11 @@ const Profile = () => {
                             initial={{ scale: 0.9, opacity: 0 }}
                             animate={{ scale: 1, opacity: 1 }}
                             exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-[#2a2a2a] w-full max-w-sm rounded-3xl p-8 shadow-2xl relative z-10 border border-white/10"
+                            className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[3rem] p-8 shadow-2xl relative z-10 border border-slate-200 dark:border-white/10"
                         >
                             <div className="flex justify-between items-center mb-8">
-                                <h3 className="text-lg font-black uppercase tracking-tighter italic">Update Identity</h3>
-                                <button onClick={() => setIsEditing(false)} className="p-2 hover:bg-white/5 rounded-full"><X size={20}/></button>
+                                <h3 className="text-xl font-black uppercase tracking-tighter italic text-slate-900 dark:text-white">Update Identity</h3>
+                                <button onClick={() => setIsEditing(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full"><X size={20}/></button>
                             </div>
                             
                             <form onSubmit={handleUpdate} className="space-y-6">
@@ -207,11 +228,6 @@ const Profile = () => {
                                     label="Full Name" 
                                     value={userData.FullName} 
                                     onChange={(e) => setUserData({...userData, FullName: e.target.value})} 
-                                />
-                                <ProfileInput 
-                                    label="Phone Number" 
-                                    value={userData.Phone || ''} 
-                                    onChange={(e) => setUserData({...userData, Phone: e.target.value})} 
                                 />
                                 <ProfileInput 
                                     label="Email Address" 
@@ -222,7 +238,7 @@ const Profile = () => {
                                 
                                 <button 
                                     type="submit"
-                                    className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-black uppercase tracking-[0.3em] text-[11px] shadow-xl shadow-blue-500/20 active:scale-95 transition-all"
+                                    className="w-full py-5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] shadow-xl active:scale-95 transition-all mt-4"
                                 >
                                     Confirm Updates
                                 </button>
@@ -231,66 +247,29 @@ const Profile = () => {
                     </div>
                 )}
             </AnimatePresence>
-        </div>
-    );
-};
-
-const Card = ({ title, subtitle, icon, children, collapsable, defaultOpen = true }) => {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
-    
-    return (
-        <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`bg-[#2a2a2a] rounded-xl overflow-hidden shadow-lg border border-white/5`}
-        >
-            <div 
-                className={`p-5 flex items-center justify-between cursor-pointer ${collapsable && 'hover:bg-white/5 transition-colors'}`}
-                onClick={() => collapsable && setIsOpen(!isOpen)}
-            >
-                <div className="flex items-center gap-4">
-                    {icon}
-                    <div className="space-y-0.5">
-                        <h3 className="text-sm font-black uppercase tracking-tight">{title}</h3>
-                        {subtitle && <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{subtitle}</p>}
-                    </div>
-                </div>
-                {collapsable && <ChevronDown size={18} className={`text-blue-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />}
-            </div>
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        className="px-5 pb-5 border-t border-white/5"
-                    >
-                        {children}
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </motion.div>
     );
 };
 
-const InfoRow = ({ icon, text }) => (
-    <div className="flex items-start gap-4 group cursor-default">
-        <div className="text-blue-400 opacity-60 group-hover:opacity-100 transition-opacity pt-0.5">
-            {icon}
-        </div>
-        <p className="text-[12px] font-bold text-slate-300 tracking-tight leading-none pt-1">
-            {text}
-        </p>
+const ProfileInput = ({ label, ...props }) => (
+    <div className="space-y-2">
+        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-1 italic">{label}</label>
+        <input 
+            {...props}
+            className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl p-4 text-sm font-bold focus:ring-2 focus:ring-[#a78bfa]/20 focus:border-[#a78bfa] dark:text-white outline-none transition-all"
+        />
     </div>
 );
 
-const ProfileInput = ({ label, ...props }) => (
-    <div className="space-y-2">
-        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 ml-1 italic">{label}</label>
-        <input 
-            {...props}
-            className="w-full bg-slate-900/50 border border-white/10 rounded-xl p-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-        />
+const ModernInfoItem = ({ icon, label, value }) => (
+    <div className="flex items-center gap-5 group cursor-default">
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-950 text-slate-400 group-hover:text-[#a78bfa] group-hover:scale-110 transition-all duration-300 shadow-lg border border-slate-100 dark:border-white/10 ring-1 ring-slate-100 dark:ring-white/5 shadow-slate-100 dark:shadow-none">
+            {icon}
+        </div>
+        <div className="space-y-0.5">
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">{label}</p>
+            <p className="text-sm font-black text-slate-800 dark:text-slate-200 tracking-tight leading-none pt-0.5">{value}</p>
+        </div>
     </div>
 );
 
