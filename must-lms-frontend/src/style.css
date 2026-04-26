@@ -128,3 +128,26 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgba(56, 189, 248, 0.2) transparent;
 }
+
+/* 🌙 Dark Mode Input & Select Fixes */
+.dark input, 
+.dark select, 
+.dark textarea {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark option {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
+}
+
+.dark input::placeholder {
+  color: #64748b !important;
+}
+
+/* Fix for white boxes in some browsers on dark mode dropdowns */
+.dark select {
+  color-scheme: dark;
+}

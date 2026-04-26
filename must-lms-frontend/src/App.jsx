@@ -14,7 +14,8 @@ import Profile from './pages/Profile';
 import MyCourses from './pages/MyCourses';
 import Grades from './pages/Grades';
 import Assignments from './pages/Assignments';
-import Login from './pages/Login';
+import Auth from './pages/Auth';
+import Landing from './pages/Landing';
 import CourseDetails from './pages/CourseDetails';
 
 // Assistant Pages
@@ -55,8 +56,11 @@ const AppContent = () => {
             <AnimatePresence mode="wait">
                 <Routes location={location} key={location.pathname}>
                     
-                    {/* Login Path */}
-                    <Route path="/login" element={<Login />} />
+                    {/* Landing/Intro Path */}
+                    <Route path="/" element={<Landing />} />
+
+                    {/* Auth Path */}
+                    <Route path="/login" element={<Auth />} />
 
                     {/* Integrated App Structure */}
                     <Route 
@@ -95,8 +99,11 @@ const AppContent = () => {
                                                 {/* Common */}
                                                 <Route path="/profile" element={<Profile />} />
                                                 
-                                                {/* Default Redirect */}
-                                                <Route path="/" element={<Navigate to="/login" replace />} />
+                                                {/* Default Dashboard Redirect when logged in */}
+                                                <Route path="/dashboard" element={<Navigate to={`/${JSON.parse(localStorage.getItem('user'))?.UserType?.toLowerCase() || 'student'}`} replace />} />
+                                                
+                                                {/* Redirect unmatched nested paths back to specific role dashboard */}
+                                                <Route path="*" element={<Navigate to="/dashboard" replace />} />
                                             </Routes>
 
                                         </div>
