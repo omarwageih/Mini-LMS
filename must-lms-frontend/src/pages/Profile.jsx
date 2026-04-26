@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     User, Mail, Calendar, Award,
     Settings, Camera, Shield, GraduationCap,
-    Zap, Target, Heart, Edit2, Loader2, X
+    Zap, Target, Heart, Edit2, Loader2, X, Sparkles
 } from 'lucide-react';
 
 const Profile = () => {
@@ -87,7 +87,7 @@ const Profile = () => {
             initial="hidden"
             animate="visible"
             variants={containerVariants}
-            className="min-h-screen pb-20 pt-4 px-4 sm:px-10 selection:bg-[#c084fc]/30"
+            className="min-h-screen pb-20 pt-4 px-4 sm:px-10 selection:bg-indigo-500/30 bg-slate-50 dark:bg-[#0f172a]"
         >
             <div className="max-w-6xl mx-auto space-y-12">
 
@@ -124,23 +124,37 @@ const Profile = () => {
                         </div>
                     </div>
 
-                    <button 
+                    <motion.button 
+                        whileHover={{ scale: 1.05, y: -2 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={() => setIsEditing(true)}
-                        className="flex items-center gap-2.5 px-6 py-4 bg-white dark:bg-white/5 text-slate-600 dark:text-slate-200 font-bold rounded-2xl text-[11px] uppercase tracking-widest shadow-lg hover:shadow-xl hover:border-slate-200 dark:hover:border-white/10 border border-slate-100 dark:border-white/5 transition-all active:scale-95"
+                        className="btn-grad px-8 py-4 text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 flex items-center gap-3"
                     >
-                        <Edit2 size={16} /> Update Info
-                    </button>
+                        <Sparkles size={16} /> Update Info
+                    </motion.button>
                 </motion.div>
 
                 {/* 2. Stats & Info Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
 
-                    {/* Left Column: Academic Health */}
+                    {/* Left Column: Academic Health / Performance */}
                     <motion.div variants={itemVariants} className="lg:col-span-5 flex flex-col gap-10">
                         <div className="glass-card p-10 flex flex-col items-center justify-center border border-white dark:border-white/5 shadow-2xl relative">
                             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-8 flex items-center gap-2">
-                                <Heart size={12} className="text-red-400" /> Academic Health
+                                {user.UserType === 'Student' ? (
+                                    <><Heart size={12} className="text-red-400" /> Academic Health</>
+                                ) : (
+                                    <><Shield size={12} className="text-blue-400" /> Faculty Excellence</>
+                                )}
                             </h3>
+                            
+                            <div className="absolute top-6 right-6">
+                                <motion.div 
+                                    animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }}
+                                    transition={{ duration: 4, repeat: Infinity }}
+                                    className="w-16 h-16 bg-indigo-500/10 blur-xl rounded-full"
+                                />
+                            </div>
 
                             {user.UserType === 'Student' ? (
                                 <div className="relative">
@@ -155,28 +169,35 @@ const Profile = () => {
                                         />
                                         <defs>
                                             <linearGradient id="gpa_aurora" x1="0%" y1="0%" x2="100%" y2="0%">
-                                                <stop offset="0%" stopColor="#d8b4fe" />
-                                                <stop offset="100%" stopColor="#818cf8" />
+                                                <stop offset="0%" stopColor="#6366f1" />
+                                                <stop offset="100%" stopColor="#8b5cf6" />
                                             </linearGradient>
                                         </defs>
                                     </svg>
                                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                        <span className="text-6xl font-black text-slate-950 dark:text-white italic tracking-tighter leading-none">{gpaValue.toFixed(2)}</span>
-                                        <span className="text-[9px] text-slate-400 font-bold uppercase tracking-[0.3em] mt-1.5">GPA SCORE</span>
+                                        <span className="text-6xl font-black text-slate-800 dark:text-slate-100 italic tracking-tighter leading-none">{gpaValue.toFixed(2)}</span>
+                                        <span className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-[0.3em] mt-1.5">GPA SCORE</span>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="text-center py-10">
-                                    <Award size={64} className="text-[#a78bfa] mx-auto mb-4 opacity-50" />
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Teaching Staff Authority</p>
+                                <div className="relative flex flex-col items-center">
+                                    <div className="w-48 h-48 rounded-full border-2 border-dashed border-indigo-500/20 flex items-center justify-center relative">
+                                        <div className="absolute inset-0 bg-indigo-500/5 rounded-full blur-3xl" />
+                                        <Award size={80} className="text-indigo-500/80 relative z-10" />
+                                    </div>
+                                    <div className="mt-8 text-center space-y-1">
+                                        <span className="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter">{statsData?.courseCount || 0}</span>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Modules Managed</p>
+                                    </div>
                                 </div>
                             )}
                             
-                            {user.UserType === 'Student' && (
-                                <div className="mt-8 px-5 py-2 bg-gradient-to-r from-[#d8b4fe] to-[#818cf8] text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl shadow-[#818cf8]/20">
-                                    {gpaValue >= 3.7 ? 'Excellent' : gpaValue >= 3.0 ? 'Very Good' : 'Academic Standing'}
-                                </div>
-                            )}
+                            <div className="mt-8 px-6 py-2.5 bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest text-[#a78bfa] italic">
+                                {user.UserType === 'Student' 
+                                    ? (gpaValue >= 3.7 ? 'Excellent Standing' : 'Active Enrollment')
+                                    : 'Verified Faculty Member'
+                                }
+                            </div>
                         </div>
                     </motion.div>
 
@@ -194,9 +215,17 @@ const Profile = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-12">
                                 <ModernInfoItem icon={<Mail size={20} />} label="Terminal Email" value={user.Email} />
-                                <ModernInfoItem icon={<GraduationCap size={20} />} label="Academic Level" value={profileDetails.Level} />
+                                <ModernInfoItem 
+                                    icon={<GraduationCap size={20} />} 
+                                    label={user.UserType === 'Student' ? "Academic Level" : "Designation"} 
+                                    value={user.UserType === 'Student' ? profileDetails.Level : user.UserType} 
+                                />
                                 <ModernInfoItem icon={<Calendar size={20} />} label="Join Session" value={profileDetails.JoinDate} />
-                                <ModernInfoItem icon={<Award size={20} />} label="Earned Units" value={`${profileDetails.TotalCredits} Credits`} />
+                                <ModernInfoItem 
+                                    icon={<BookOpen size={20} />} 
+                                    label={user.UserType === 'Student' ? "Earned Units" : "Course Load"} 
+                                    value={user.UserType === 'Student' ? `${profileDetails.TotalCredits} Credits` : `${statsData?.courseCount || 0} Open Courses`} 
+                                />
                             </div>
                         </div>
                     </motion.div>

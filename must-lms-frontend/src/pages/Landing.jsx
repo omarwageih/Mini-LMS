@@ -68,17 +68,15 @@ const Landing = () => {
                 >
                     <Link 
                         to="/login"
-                        className="group relative px-10 py-5 bg-slate-950 dark:bg-white text-white dark:text-slate-950 rounded-[2rem] text-[12px] font-black uppercase tracking-[0.3em] shadow-2xl overflow-hidden active:scale-95 transition-all"
+                        className="btn-grad px-12 py-5 rounded-[2rem] text-[12px] font-black uppercase tracking-[0.3em] shadow-2xl active:scale-95 transition-all flex items-center gap-3"
                     >
-                        <span className="relative z-10 flex items-center gap-3">
-                            Start Journey <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                        </span>
+                        Start Journey <ArrowRight size={18} />
                     </Link>
                     
                     <Link 
                         to="/login"
                         state={{ mode: 'register' }}
-                        className="px-10 py-5 bg-white/50 dark:bg-white/5 backdrop-blur-md border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-[2rem] text-[12px] font-black uppercase tracking-[0.3em] hover:bg-white dark:hover:bg-white/10 transition-all active:scale-95"
+                        className="px-12 py-5 bg-white/50 dark:bg-slate-800/50 backdrop-blur-md border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-[2rem] text-[12px] font-black uppercase tracking-[0.3em] hover:bg-white dark:hover:bg-slate-700/50 transition-all active:scale-95 shadow-lg"
                     >
                         Register ID
                     </Link>

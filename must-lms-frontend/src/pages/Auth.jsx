@@ -200,17 +200,16 @@ const Auth = () => {
                             {isLogin && (
                                 <button type="button" className="absolute right-4 bottom-4 text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest italic hover:underline">Forgot?</button>
                             )}
+                            <motion.button
+                                whileHover={{ scale: 1.02, y: -2 }}
+                                whileTap={{ scale: 0.98 }}
+                                type="submit"
+                                disabled={loading}
+                                className="w-full py-5 btn-grad rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all text-white disabled:opacity-50"
+                            >
+                                {loading ? <Loader2 className="animate-spin" size={20} /> : (isLogin ? <><LogIn size={18} /> Enter Portal</> : <><ShieldPlus size={18} /> Initialize ID</>)}
+                            </motion.button>
                         </div>
-
-                        <motion.button
-                            whileHover={{ scale: 1.01 }}
-                            whileTap={{ scale: 0.98 }}
-                            disabled={loading}
-                            type="submit"
-                            className="w-full py-5 mt-6 bg-slate-950 dark:bg-white text-white dark:text-slate-950 font-black rounded-2xl shadow-xl transition-all flex items-center justify-center gap-3.5 tracking-[0.3em] text-[12px] uppercase italic disabled:opacity-50"
-                        >
-                            {loading ? <Loader2 className="animate-spin" /> : (isLogin ? <><LogIn size={20} /> Authorize Access</> : <><ShieldPlus size={20} /> Confirm Identity</>)}
-                        </motion.button>
                     </form>
 
                     <div className="mt-10 pt-6 border-t border-slate-100 dark:border-white/5 text-center">
@@ -227,16 +226,17 @@ const Auth = () => {
 const ModernInput = ({ icon, label, placeholder, ...props }) => (
     <div className="space-y-2.5 text-left group">
         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-600 ml-2 italic group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors">{label}</label>
-        <div className="relative">
-            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors" >
-                {icon}
-            </div>
-            <input
-                {...props}
-                placeholder={placeholder}
-                className="w-full bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 p-5 pl-14 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white font-bold text-sm"
-            />
-        </div>
+                <div className="relative">
+                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors" >
+                        {icon}
+                    </div>
+                    <input
+                        {...props}
+                        autoComplete={props.type === 'password' ? 'current-password' : 'off'}
+                        placeholder={placeholder}
+                        className="w-full bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 p-5 pl-14 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white font-bold text-sm"
+                    />
+                </div>
     </div>
 );
 
