@@ -5,7 +5,7 @@ import {
   Users, PlusSquare, Menu, X
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 
 const Sidebar = ({ isDark, toggleTheme }) => {
   const location = useLocation();
@@ -87,6 +87,7 @@ const Sidebar = ({ isDark, toggleTheme }) => {
 
       {/* Navigation */}
       <nav className="flex-1 px-6 space-y-2 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(56,189,248,0.2) transparent' }}>
+        <LayoutGroup>
         {menuItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
@@ -103,12 +104,17 @@ const Sidebar = ({ isDark, toggleTheme }) => {
                 </span>
                 <span className="text-sm tracking-tight uppercase italic">{item.label}</span>
                 {isActive && (
-                  <div className="ml-auto w-1.5 h-1.5 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse" />
+                  <motion.div
+                    layoutId="activeCircle"
+                    className="ml-auto w-1.5 h-1.5 bg-blue-600 dark:bg-blue-400 rounded-full"
+                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                  />
                 )}
               </div>
             </Link>
           );
         })}
+        </LayoutGroup>
       </nav>
 
       {/* Bottom Actions */}
