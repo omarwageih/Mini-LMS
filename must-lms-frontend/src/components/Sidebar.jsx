@@ -86,7 +86,7 @@ const Sidebar = ({ isDark, toggleTheme }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-6 space-y-2 overflow-y-auto custom-scrollbar">
+      <nav className="flex-1 px-6 space-y-2 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(56,189,248,0.2) transparent' }}>
         {menuItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
@@ -103,10 +103,7 @@ const Sidebar = ({ isDark, toggleTheme }) => {
                 </span>
                 <span className="text-sm tracking-tight uppercase italic">{item.label}</span>
                 {isActive && (
-                  <motion.div
-                    layoutId="activeCircle"
-                    className="ml-auto w-1.5 h-1.5 bg-blue-600 dark:bg-blue-400 rounded-full"
-                  />
+                  <div className="ml-auto w-1.5 h-1.5 bg-blue-600 dark:bg-blue-400 rounded-full animate-pulse" />
                 )}
               </div>
             </Link>
