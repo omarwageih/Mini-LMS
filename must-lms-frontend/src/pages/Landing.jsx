@@ -76,7 +76,8 @@ const Landing = () => {
                     </Link>
                     
                     <Link 
-                        to="/login" // Same page since Auth handles both
+                        to="/login"
+                        state={{ mode: 'register' }}
                         className="px-10 py-5 bg-white/50 dark:bg-white/5 backdrop-blur-md border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white rounded-[2rem] text-[12px] font-black uppercase tracking-[0.3em] hover:bg-white dark:hover:bg-white/10 transition-all active:scale-95"
                     >
                         Register ID
