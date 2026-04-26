@@ -1,9 +1,18 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Sparkles, ArrowRight, ShieldCheck, BookOpen, GraduationCap } from 'lucide-react';
 
 const Landing = () => {
+    const navigate = useNavigate();
+
+    React.useEffect(() => {
+        const user = localStorage.getItem('user');
+        if (user) {
+            navigate('/dashboard');
+        }
+    }, [navigate]);
+
     return (
         <div className="min-h-screen bg-[#f8fafc] dark:bg-[#020617] relative overflow-hidden flex flex-col items-center justify-center px-6 selection:bg-blue-500/20">
             

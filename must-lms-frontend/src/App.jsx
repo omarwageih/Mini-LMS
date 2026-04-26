@@ -33,6 +33,20 @@ import InstructorSubmissions from './pages/instructor/InstructorSubmissions';
 import InstructorCourseDetails from './pages/instructor/InstructorCourseDetails';
 
 // Protected Route Component
+const DashboardRedirect = () => {
+    const userString = localStorage.getItem('user');
+    if (!userString) return <Navigate to="/login" replace />;
+    
+    try {
+        const user = JSON.parse(userString);
+        const role = user.UserType?.toLowerCase() || 'student';
+        return <Navigate to={`/${role}`} replace />;
+    } catch (e) {
+        localStorage.clear();
+        return <Navigate to="/login" replace />;
+    }
+};
+
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const user = JSON.parse(localStorage.getItem('user'));
     
@@ -100,7 +114,7 @@ const AppContent = () => {
                                                 <Route path="/profile" element={<Profile />} />
                                                 
                                                 {/* Default Dashboard Redirect when logged in */}
-                                                <Route path="/dashboard" element={<Navigate to={`/${JSON.parse(localStorage.getItem('user'))?.UserType?.toLowerCase() || 'student'}`} replace />} />
+                                                <Route path="/dashboard" element={<DashboardRedirect />} />
                                                 
                                                 {/* Redirect unmatched nested paths back to specific role dashboard */}
                                                 <Route path="*" element={<Navigate to="/dashboard" replace />} />

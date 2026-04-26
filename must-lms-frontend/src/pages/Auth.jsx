@@ -14,6 +14,13 @@ const Auth = () => {
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
+    React.useEffect(() => {
+        const user = localStorage.getItem('user');
+        if (user) {
+            navigate('/dashboard');
+        }
+    }, [navigate]);
+
     const handleAuth = async (e) => {
         e.preventDefault();
         setError('');
@@ -53,7 +60,7 @@ const Auth = () => {
 
                 // Navigate based on role (standard behavior)
                 // We'll just go to the default dashboard which redirects or shows role content
-                navigate('/');
+                navigate('/dashboard');
             } else {
                 // Handle Register Success
                 setSuccess("Registration successful! Switching to login...");
