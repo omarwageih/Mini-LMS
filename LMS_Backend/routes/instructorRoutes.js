@@ -8,7 +8,8 @@ const {
     getCourses, createCourse,
     addWeek, addMaterial, addLecture,
     createAssignment,
-    getSubmissions
+    getSubmissions,
+    getCourseContent
 } = require('../controllers/instructorController');
 
 // All routes require Instructor role
@@ -29,6 +30,7 @@ router.post('/students/enroll', enrollStudent);
 // ===== Courses =====
 router.get('/courses', getCourses);
 router.post('/courses', createCourse);
+router.get('/courses/:courseId/content', getCourseContent);
 
 // ===== Content =====
 router.post('/weeks', addWeek);

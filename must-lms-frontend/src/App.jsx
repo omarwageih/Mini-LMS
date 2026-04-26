@@ -29,6 +29,7 @@ import ManageStudents from './pages/instructor/ManageStudents';
 import ManageAssistants from './pages/instructor/ManageAssistants';
 import ManageCourses from './pages/instructor/ManageCourses';
 import InstructorSubmissions from './pages/instructor/InstructorSubmissions';
+import InstructorCourseDetails from './pages/instructor/InstructorCourseDetails';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -88,6 +89,7 @@ const AppContent = () => {
                                                 <Route path="/instructor/students" element={<ProtectedRoute allowedRoles={['Instructor']}><ManageStudents /></ProtectedRoute>} />
                                                 <Route path="/instructor/assistants" element={<ProtectedRoute allowedRoles={['Instructor']}><ManageAssistants /></ProtectedRoute>} />
                                                 <Route path="/instructor/courses" element={<ProtectedRoute allowedRoles={['Instructor']}><ManageCourses /></ProtectedRoute>} />
+                                                <Route path="/instructor/courses/:id" element={<ProtectedRoute allowedRoles={['Instructor']}><InstructorCourseDetails /></ProtectedRoute>} />
                                                 <Route path="/instructor/submissions" element={<ProtectedRoute allowedRoles={['Instructor']}><InstructorSubmissions /></ProtectedRoute>} />
 
                                                 {/* Common */}

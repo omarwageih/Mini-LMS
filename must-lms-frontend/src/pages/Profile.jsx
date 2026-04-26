@@ -5,7 +5,6 @@ import {
     Settings, Camera, Shield, GraduationCap,
     Zap, Target, Heart, Edit2, Loader2
 } from 'lucide-react';
-import { apiGet } from '../api';
 
 const Profile = () => {
     const [profileData, setProfileData] = useState(null);
@@ -17,8 +16,20 @@ const Profile = () => {
     useEffect(() => {
         const loadProfile = async () => {
             try {
-                const data = await apiGet('/student/dashboard');
-                setProfileData(data);
+                const token = localStorage.getItem('token');
+                const res = await fetch('http://localhost:3000/api/dashboard/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const stats = await res.json();
+                    // Extract GPA and course count from stats array
+                    const gpaItem = stats.find(s => s.label?.includes('GPA'));
+                    const courseItem = stats.find(s => s.label?.includes('Course'));
+                    setProfileData({
+                        gpa: gpaItem ? parseFloat(gpaItem.val) : 0,
+                        courseCount: courseItem ? parseInt(courseItem.val) : 0
+                    });
+                }
             } catch (err) {
                 console.error('Profile fetch error:', err);
             } finally {

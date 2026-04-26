@@ -457,11 +457,105 @@ const getSubmissions = async (req, res) => {
     }
 };
 
+// =============================================
+//  COURSE CONTENT VIEW (Instructor - no enrollment check)
+// =============================================
+const getCourseContent = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const pool = await getPool();
+
+        // Get course info
+        const courseResult = await pool.request()
+            .input('courseID', sql.Int, courseId)
+            .query(`
+                SELECT c.CourseID, c.Name AS CourseName, c.Max_Marks,
+                       u.FullName AS InstructorName
+                FROM Course c
+                LEFT JOIN Users u ON c.InstructorID = u.UserID
+                WHERE c.CourseID = @courseID
+            `);
+
+        if (courseResult.recordset.length === 0) {
+            return res.status(404).json({ message: 'Course not found.' });
+        }
+
+        // Get weeks
+        const weeksResult = await pool.request()
+            .input('courseID', sql.Int, courseId)
+            .query(`
+                SELECT Week_ID AS WeekID, CourseID, Week_Number AS WeekNumber, Title, StartDate, EndDate
+                FROM StudyWeek 
+                WHERE CourseID = @courseID 
+                ORDER BY Week_Number
+            `);
+
+        // Get materials for each week
+        const weeks = [];
+        for (const week of weeksResult.recordset) {
+            const materialsResult = await pool.request()
+                .input('weekID', sql.Int, week.WeekID)
+                .query(`
+                    SELECT Material_ID AS MaterialID, Week_ID AS WeekID, Title, Created_By
+                    FROM Material 
+                    WHERE Week_ID = @weekID
+                `);
+            weeks.push({ ...week, materials: materialsResult.recordset });
+        }
+
+        // Get lectures
+        const lecturesResult = await pool.request()
+            .input('courseID', sql.Int, courseId)
+            .query(`
+                SELECT LectureID, Title, Date, Start_Time, End_Time
+                FROM Lecture 
+                WHERE CourseID = @courseID 
+                ORDER BY Date
+            `);
+
+        // Get assignments
+        const assignmentsResult = await pool.request()
+            .input('courseID', sql.Int, courseId)
+            .query(`
+                SELECT AssignmentID, Title, Max_Score, Deadline
+                FROM Assignment 
+                WHERE CourseID = @courseID 
+                ORDER BY Deadline
+            `);
+
+        // Get enrolled students count
+        const enrolledResult = await pool.request()
+            .input('courseID', sql.Int, courseId)
+            .query('SELECT COUNT(*) AS total FROM Enrollment WHERE CourseID = @courseID');
+
+        // Get submissions count
+        const subsResult = await pool.request()
+            .input('courseID', sql.Int, courseId)
+            .query(`
+                SELECT COUNT(*) AS total FROM Submission s
+                JOIN Assignment a ON s.AssignmentID = a.AssignmentID
+                WHERE a.CourseID = @courseID
+            `);
+
+        res.json({
+            course: courseResult.recordset[0],
+            weeks,
+            lectures: lecturesResult.recordset,
+            assignments: assignmentsResult.recordset,
+            enrolledCount: enrolledResult.recordset[0].total,
+            submissionCount: subsResult.recordset[0].total
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 module.exports = {
     getAssistants, addAssistant, deleteAssistant, assignAssistantToCourse,
     getStudents, addStudent, deleteStudent, enrollStudent,
     getCourses, createCourse,
     addWeek, addMaterial, addLecture,
     createAssignment,
-    getSubmissions
+    getSubmissions,
+    getCourseContent
 };
