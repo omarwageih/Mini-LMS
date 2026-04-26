@@ -17,11 +17,13 @@ const authRoutes = require('./routes/authRoutes');
 const instructorRoutes = require('./routes/instructorRoutes');
 const assistantRoutes = require('./routes/assistantRoutes');
 const studentRoutes = require('./routes/studentRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/instructor', instructorRoutes);
 app.use('/api/assistant', assistantRoutes);
 app.use('/api/student', studentRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 const runMigrations = require('./migrate');
 

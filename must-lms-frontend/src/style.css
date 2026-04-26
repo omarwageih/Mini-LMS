@@ -23,7 +23,6 @@ body {
 }
 
 /* 🌑 الدارك مود الملكي (Midnight Navy) */
-/* السطر ده بيقفل ملف الألوان على الكحلي الغامق جداً */
 .dark,
 .dark body,
 .dark #root,
@@ -45,7 +44,6 @@ body {
 .dark .glass-card {
   background-color: rgba(15, 23, 42, 0.6) !important;
   border-color: rgba(56, 189, 248, 0.1) !important;
-  /* لمسة سيان خفيفة ع الحواف */
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
@@ -72,7 +70,6 @@ body {
 .dark .text-slate-500,
 .dark .text-slate-400 {
   color: #94a3b8 !important;
-  /* رمادي ناعم مريح للعين */
 }
 
 /* 🔵 ألوان النيون للـ Icons والـ Accents */
@@ -81,7 +78,6 @@ body {
 .dark .text-blue-500,
 .dark .text-cyan-400 {
   color: #38bdf8 !important;
-  /* Cyan Neon */
   filter: drop-shadow(0 0 5px rgba(56, 189, 248, 0.3));
 }
 

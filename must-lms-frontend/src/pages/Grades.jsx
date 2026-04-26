@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Award, BookOpen } from 'lucide-react';
 import { apiGet } from '../api';
+import { SkeletonTable, EmptyState } from '../components/UIHelpers';
 
 const Grades = () => {
     const [grades, setGrades] = useState([]);
     const [dashData, setDashData] = useState({ gpa: 0, courseCount: 0 });
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const load = async () => {
@@ -17,6 +19,7 @@ const Grades = () => {
                 setGrades(g);
                 setDashData(d);
             } catch (err) { console.error(err); }
+            finally { setLoading(false); }
         };
         load();
     }, []);
@@ -60,6 +63,11 @@ const Grades = () => {
                 </div>
 
                 {/* Grades Table Card */}
+                {loading ? (
+                    <SkeletonTable rows={4} cols={6} />
+                ) : grades.length === 0 ? (
+                    <EmptyState title="No grades yet" subtitle="Your grades will appear here once your courses are graded." icon={Award} />
+                ) : (
                 <div className="glass-card overflow-hidden border border-slate-100 dark:border-white/5 bg-white/70 dark:bg-slate-900/60 shadow-xl shadow-slate-200/50 dark:shadow-none">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
@@ -74,9 +82,7 @@ const Grades = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                {grades.length === 0 ? (
-                                    <tr><td colSpan={6} className="p-8 text-center text-slate-400 text-sm italic">No grades available yet</td></tr>
-                                ) : grades.map((item) => (
+                                {grades.map((item) => (
                                     <tr key={item.GradeID} className="group hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-default">
                                         <td className="p-6">
                                             <div className="flex items-center gap-4">
@@ -109,6 +115,7 @@ const Grades = () => {
                         </table>
                     </div>
                 </div>
+                )}
 
                 {/* Footer Info */}
                 <p className="text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">

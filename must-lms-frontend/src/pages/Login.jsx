@@ -41,7 +41,8 @@ const Login = () => {
         const user = {
             UserID: payload.id,
             UserType: payload.type,
-            Email: email
+            FullName: payload.name,
+            Email: payload.email
         };
 
         localStorage.setItem('user', JSON.stringify(user));
