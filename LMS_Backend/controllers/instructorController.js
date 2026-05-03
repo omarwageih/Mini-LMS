@@ -1,5 +1,6 @@
 const { sql, getPool } = require('../config/db');
 const bcrypt = require('bcryptjs');
+const { createNotification, logAudit } = require('../utils/helpers');
 
 // =============================================
 //  ASSISTANTS MANAGEMENT
@@ -17,7 +18,8 @@ const getAssistants = async (req, res) => {
         `);
         res.json(result.recordset);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Assistants Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching assistants." });
     }
 };
 
@@ -64,7 +66,8 @@ const addAssistant = async (req, res) => {
 
         res.json({ message: "Assistant added successfully", userID });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Add Assistant Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while adding assistant." });
     }
 };
 
@@ -73,25 +76,31 @@ const deleteAssistant = async (req, res) => {
     try {
         const { id } = req.params; // id = UserID
         const pool = await getPool();
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
 
-        // Delete from Course_Assistants first (FK)
-        await pool.request()
-            .input('userID', sql.Int, id)
-            .query('DELETE FROM Course_Assistants WHERE AssistantID = @userID');
+        try {
+            const request = new sql.Request(transaction);
+            request.input('userID', sql.Int, id);
 
-        // Delete from Assistants (PK = UserID)
-        await pool.request()
-            .input('userID', sql.Int, id)
-            .query('DELETE FROM Assistants WHERE UserID = @userID');
+            // Delete from Course_Assistants first (FK)
+            await request.query('DELETE FROM Course_Assistants WHERE AssistantID = @userID');
 
-        // Delete from Users
-        await pool.request()
-            .input('userID', sql.Int, id)
-            .query("DELETE FROM Users WHERE UserID = @userID AND UserType = 'Assistant'");
+            // Delete from Assistants (PK = UserID)
+            await request.query('DELETE FROM Assistants WHERE UserID = @userID');
 
-        res.json({ message: "Assistant deleted successfully" });
+            // Delete from Users
+            await request.query("DELETE FROM Users WHERE UserID = @userID AND UserType = 'Assistant'");
+
+            await transaction.commit();
+            res.json({ message: "Assistant deleted successfully" });
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Delete Assistant Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while deleting assistant." });
     }
 };
 
@@ -124,7 +133,8 @@ const assignAssistantToCourse = async (req, res) => {
 
         res.json({ message: "Assistant assigned to course successfully" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Assign Assistant Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while assigning assistant." });
     }
 };
 
@@ -145,7 +155,8 @@ const getStudents = async (req, res) => {
         `);
         res.json(result.recordset);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Students Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching students." });
     }
 };
 
@@ -192,7 +203,8 @@ const addStudent = async (req, res) => {
 
         res.json({ message: "Student added successfully", userID });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Add Student Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while adding student." });
     }
 };
 
@@ -201,35 +213,37 @@ const deleteStudent = async (req, res) => {
     try {
         const { id } = req.params; // id = UserID
         const pool = await getPool();
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
 
-        // Delete related submissions first
-        await pool.request()
-            .input('userID', sql.Int, id)
-            .query('DELETE FROM Submission WHERE StudentID = @userID');
+        try {
+            const request = new sql.Request(transaction);
+            request.input('userID', sql.Int, id);
 
-        // Delete from Enrollment
-        await pool.request()
-            .input('userID', sql.Int, id)
-            .query('DELETE FROM Enrollment WHERE StudentID = @userID');
+            // Delete related submissions first
+            await request.query('DELETE FROM Submission WHERE StudentID = @userID');
 
-        // Delete from Course_Grades
-        await pool.request()
-            .input('userID', sql.Int, id)
-            .query('DELETE FROM Course_Grades WHERE StudentID = @userID');
+            // Delete from Enrollment
+            await request.query('DELETE FROM Enrollment WHERE StudentID = @userID');
 
-        // Delete from Students (PK = UserID)
-        await pool.request()
-            .input('userID', sql.Int, id)
-            .query('DELETE FROM Students WHERE UserID = @userID');
+            // Delete from Course_Grades
+            await request.query('DELETE FROM Course_Grades WHERE StudentID = @userID');
 
-        // Delete from Users
-        await pool.request()
-            .input('userID', sql.Int, id)
-            .query("DELETE FROM Users WHERE UserID = @userID AND UserType = 'Student'");
+            // Delete from Students (PK = UserID)
+            await request.query('DELETE FROM Students WHERE UserID = @userID');
 
-        res.json({ message: "Student deleted successfully" });
+            // Delete from Users
+            await request.query("DELETE FROM Users WHERE UserID = @userID AND UserType = 'Student'");
+
+            await transaction.commit();
+            res.json({ message: "Student deleted successfully" });
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Delete Student Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while deleting student." });
     }
 };
 
@@ -262,7 +276,8 @@ const enrollStudent = async (req, res) => {
 
         res.json({ message: "Student enrolled successfully" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Enroll Student Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while enrolling student." });
     }
 };
 
@@ -282,7 +297,8 @@ const getCourses = async (req, res) => {
         `);
         res.json(result.recordset);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Courses Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching courses." });
     }
 };
 
@@ -309,7 +325,8 @@ const createCourse = async (req, res) => {
 
         res.json({ message: "Course created successfully", courseID: result.recordset[0].CourseID });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Create Course Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while creating course." });
     }
 };
 
@@ -339,7 +356,8 @@ const addWeek = async (req, res) => {
 
         res.json({ message: "Week added successfully", weekID: result.recordset[0].Week_ID });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Add Week Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while adding week." });
     }
 };
 
@@ -362,7 +380,8 @@ const addMaterial = async (req, res) => {
 
         res.json({ message: "Material added successfully" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Add Material Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while adding material." });
     }
 };
 
@@ -391,7 +410,8 @@ const addLecture = async (req, res) => {
 
         res.json({ message: "Lecture added successfully" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Add Lecture Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while adding lecture." });
     }
 };
 
@@ -422,7 +442,8 @@ const createAssignment = async (req, res) => {
 
         res.json({ message: "Assignment created successfully" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Create Assignment Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while creating assignment." });
     }
 };
 
@@ -453,7 +474,8 @@ const getSubmissions = async (req, res) => {
         `);
         res.json(result.recordset);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Submissions Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching submissions." });
     }
 };
 
@@ -546,7 +568,201 @@ const getCourseContent = async (req, res) => {
             submissionCount: subsResult.recordset[0].total
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Course Content Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching course content." });
+    }
+};
+
+// =============================================
+//  COURSE MATERIALS
+// =============================================
+const getCourseMaterials = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('courseId', sql.Int, courseId)
+            .query(`
+                SELECT cm.*, u.FullName AS UploaderName
+                FROM CourseMaterials cm
+                INNER JOIN Users u ON cm.UploadedBy = u.UserID
+                WHERE cm.CourseID = @courseId
+                ORDER BY cm.CreatedAt DESC
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Get Course Materials Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const uploadCourseMaterial = async (req, res) => {
+    try {
+        const { courseId, title, description, fileType } = req.body;
+        const fileUrl = req.file ? `/uploads/materials/${req.file.filename}` : (req.body.fileUrl || null);
+        const uploadedBy = req.user.id;
+
+        const pool = await getPool();
+        await pool.request()
+            .input('courseId', sql.Int, courseId)
+            .input('title', sql.VarChar, title)
+            .input('description', sql.VarChar, description || null)
+            .input('fileUrl', sql.VarChar, fileUrl)
+            .input('fileType', sql.VarChar, fileType || 'document')
+            .input('uploadedBy', sql.Int, uploadedBy)
+            .query(`INSERT INTO CourseMaterials (CourseID, Title, Description, FileUrl, FileType, UploadedBy) 
+                    VALUES (@courseId, @title, @description, @fileUrl, @fileType, @uploadedBy)`);
+
+        res.status(201).json({ message: "Material uploaded successfully." });
+    } catch (err) {
+        console.error("Upload Course Material Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const deleteCourseMaterial = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        await pool.request()
+            .input('id', sql.Int, id)
+            .query('DELETE FROM CourseMaterials WHERE MaterialID = @id');
+        res.json({ message: "Material deleted successfully." });
+    } catch (err) {
+        console.error("Delete Course Material Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+// =============================================
+//  ANNOUNCEMENTS
+// =============================================
+const getAnnouncements = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('courseId', sql.Int, courseId)
+            .query(`
+                SELECT a.*, u.FullName AS PosterName
+                FROM Announcements a
+                INNER JOIN Users u ON a.PostedBy = u.UserID
+                WHERE a.CourseID = @courseId
+                ORDER BY a.CreatedAt DESC
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Get Announcements Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const createAnnouncement = async (req, res) => {
+    try {
+        const { courseId, title, content } = req.body;
+        const postedBy = req.user.id;
+
+        const pool = await getPool();
+        await pool.request()
+            .input('courseId', sql.Int, courseId)
+            .input('title', sql.VarChar, title)
+            .input('content', sql.VarChar, content)
+            .input('postedBy', sql.Int, postedBy)
+            .query(`INSERT INTO Announcements (CourseID, Title, Content, PostedBy) 
+                    VALUES (@courseId, @title, @content, @postedBy)`);
+
+        res.status(201).json({ message: "Announcement posted successfully." });
+    } catch (err) {
+        console.error("Create Announcement Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const deleteAnnouncement = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await getPool();
+        await pool.request()
+            .input('id', sql.Int, id)
+            .query('DELETE FROM Announcements WHERE AnnouncementID = @id');
+        res.json({ message: "Announcement deleted successfully." });
+    } catch (err) {
+        console.error("Delete Announcement Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+// =============================================
+//  GRADE SUBMISSION (with email notification)
+// =============================================
+const gradeSubmission = async (req, res) => {
+    try {
+        const { submissionId, grade, feedback } = req.body;
+        const pool = await getPool();
+
+        // Update grade
+        await pool.request()
+            .input('subId', sql.Int, submissionId)
+            .input('grade', sql.Float, grade)
+            .input('feedback', sql.VarChar, feedback || null)
+            .query('UPDATE Submission SET Grade = @grade, Feedback = @feedback WHERE SubID = @subId');
+
+        // Get student email for notification
+        try {
+            const { sendEmail } = require('../utils/emailService');
+            const result = await pool.request()
+                .input('subId', sql.Int, submissionId)
+                .query(`
+                    SELECT u.Email, u.FullName, a.Title AS AssignmentTitle, c.Name AS CourseName
+                    FROM Submission s
+                    INNER JOIN Users u ON s.StudentID = u.UserID
+                    INNER JOIN Assignment a ON s.AssignmentID = a.AssignmentID
+                    INNER JOIN Course c ON a.CourseID = c.CourseID
+                    WHERE s.SubID = @subId
+                `);
+            
+            if (result.recordset.length > 0) {
+                const { Email, FullName, AssignmentTitle, CourseName } = result.recordset[0];
+                const html = `
+                    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; background: #f8fafc; border-radius: 16px;">
+                        <h2 style="color: #1e293b;">Grade Posted 🎓</h2>
+                        <p style="color: #64748b;">Hello <strong>${FullName}</strong>,</p>
+                        <p style="color: #64748b;">Your submission for <strong>${AssignmentTitle}</strong> in <strong>${CourseName}</strong> has been graded.</p>
+                        <div style="background: #2563eb; color: white; padding: 20px; border-radius: 12px; text-align: center; margin: 20px 0;">
+                            <p style="font-size: 32px; font-weight: bold; margin: 0;">${grade}</p>
+                            <p style="margin: 5px 0 0; font-size: 12px; opacity: 0.8;">Your Grade</p>
+                        </div>
+                        ${feedback ? `<p style="color: #64748b;"><strong>Feedback:</strong> ${feedback}</p>` : ''}
+                        <p style="color: #94a3b8; font-size: 12px;">— Mini LMS</p>
+                    </div>
+                `;
+                await sendEmail(Email, `Grade Posted: ${AssignmentTitle} — Mini LMS`, '', html);
+
+                // Also create in-app notification
+                const studentResult = await pool.request()
+                    .input('subId2', sql.Int, submissionId)
+                    .query('SELECT StudentID FROM Submission WHERE SubID = @subId2');
+                if (studentResult.recordset.length > 0) {
+                    await createNotification(
+                        studentResult.recordset[0].StudentID,
+                        'grade',
+                        `Grade Posted: ${AssignmentTitle}`,
+                        `You received ${grade} on ${AssignmentTitle} in ${CourseName}${feedback ? '. Feedback: ' + feedback : ''}`,
+                        '/grades'
+                    );
+                }
+            }
+        } catch (emailErr) {
+            console.error("Grade email notification failed:", emailErr.message);
+            // Don't fail the request if email fails
+        }
+
+        await logAudit(req.user.id, 'GRADE_SUBMISSION', `Graded submission #${submissionId}: ${grade}`, req.ip);
+
+        res.json({ message: "Submission graded successfully." });
+    } catch (err) {
+        console.error("Grade Submission Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
     }
 };
 
@@ -557,5 +773,8 @@ module.exports = {
     addWeek, addMaterial, addLecture,
     createAssignment,
     getSubmissions,
-    getCourseContent
+    getCourseContent,
+    getCourseMaterials, uploadCourseMaterial, deleteCourseMaterial,
+    getAnnouncements, createAnnouncement, deleteAnnouncement,
+    gradeSubmission
 };

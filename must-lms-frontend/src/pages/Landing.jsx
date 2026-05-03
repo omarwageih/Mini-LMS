@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import { Sparkles, ArrowRight, ShieldCheck, BookOpen, GraduationCap } from 'lucide-react';
+import ThemeToggle from '../components/ThemeToggle';
 
 const Landing = () => {
     const navigate = useNavigate();
@@ -20,6 +21,11 @@ const Landing = () => {
             <div className="absolute inset-0 pointer-events-none z-0">
                 <div className="absolute top-[-10%] left-[-5%] w-[60%] h-[60%] bg-blue-600/10 blur-[130px] rounded-full"></div>
                 <div className="absolute bottom-[-10%] right-[-5%] w-[50%] h-[50%] bg-purple-600/10 blur-[130px] rounded-full"></div>
+            </div>
+
+            {/* Theme Toggle */}
+            <div className="absolute top-6 right-6 z-20">
+                <ThemeToggle />
             </div>
 
             <main className="relative z-10 max-w-5xl mx-auto text-center space-y-12">
@@ -44,7 +50,7 @@ const Landing = () => {
                         transition={{ duration: 0.8, ease: "easeOut" }}
                         className="text-6xl md:text-8xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-none italic"
                     >
-                        MUST <br />
+                        Mini <br />
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-600">Learning</span> System
                     </motion.h1>
                     
@@ -55,7 +61,7 @@ const Landing = () => {
                         className="text-slate-500 dark:text-slate-400 font-bold max-w-2xl mx-auto leading-relaxed text-sm uppercase tracking-widest italic"
                     >
                         Precision. Logic. Excellence. <br />
-                        The ultimate LMS experience for MUST University Engineers.
+                        The ultimate LMS experience for modern learning.
                     </motion.p>
                 </div>
 

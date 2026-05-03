@@ -1,0 +1,92 @@
+name: Mini LMS CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # ========================================
+  # Backend — Lint, Test, Build
+  # ========================================
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: LMS_Backend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: ./LMS_Backend
+        run: npm ci
+
+      - name: Run Tests
+        working-directory: ./LMS_Backend
+        run: npm test
+        env:
+          JWT_SECRET: ci-test-secret-key
+          DB_SERVER: localhost
+          DB_NAME: test_db
+
+  # ========================================
+  # Frontend — Lint, Build
+  # ========================================
+  frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: must-lms-frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: ./must-lms-frontend
+        run: npm ci
+
+      - name: Build Production
+        working-directory: ./must-lms-frontend
+        run: npm run build
+        env:
+          VITE_API_URL: https://api.example.com
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: must-lms-frontend/dist
+          retention-days: 7
+
+  # ========================================
+  # Docker — Build Images
+  # ========================================
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Backend Image
+        run: docker build -t mini-lms-backend ./LMS_Backend
+
+      - name: Build Frontend Image
+        run: docker build -t mini-lms-frontend ./must-lms-frontend
+
+      - name: Verify Docker Compose
+        run: docker compose config

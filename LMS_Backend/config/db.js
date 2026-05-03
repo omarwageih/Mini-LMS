@@ -2,9 +2,9 @@ const sql = require('mssql');
 
 const config = {
     user: process.env.DB_USER || 'lms_user',
-    password: process.env.DB_PASSWORD || 'Anuaman6$191817',
+    password: process.env.DB_PASSWORD || 'MustLms2024',
     server: process.env.DB_SERVER || 'localhost',
-    database: process.env.DB_NAME || 'LMS',
+    database: process.env.DB_NAME || 'MUST_University_LMS',
     port: parseInt(process.env.DB_PORT) || 60563,
     options: {
         encrypt: false,

@@ -11,7 +11,11 @@ const getAssignedCourses = async (req, res) => {
         const result = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
-                SELECT c.CourseID, c.Name AS CourseName, u.FullName AS InstructorName
+                SELECT 
+                    c.CourseID, 
+                    c.Name AS CourseName, 
+                    u.FullName AS InstructorName,
+                    (SELECT COUNT(*) FROM Enrollment WHERE CourseID = c.CourseID) AS StudentCount
                 FROM Course_Assistants ca
                 INNER JOIN Course c ON ca.CourseID = c.CourseID
                 LEFT JOIN Users u ON c.InstructorID = u.UserID
@@ -20,7 +24,8 @@ const getAssignedCourses = async (req, res) => {
 
         res.json(result.recordset);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Assigned Courses Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching assigned courses." });
     }
 };
 
@@ -50,7 +55,8 @@ const createAssignment = async (req, res) => {
 
         res.json({ message: "Assignment created successfully" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Create Assignment Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while creating assignment." });
     }
 };
 
@@ -85,7 +91,8 @@ const getSubmissions = async (req, res) => {
 
         res.json(result.recordset);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Submissions Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching submissions." });
     }
 };
 
@@ -131,7 +138,8 @@ const gradeSubmission = async (req, res) => {
 
         res.json({ message: "Submission graded successfully" });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Grade Submission Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while grading submission." });
     }
 };
 

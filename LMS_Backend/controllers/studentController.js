@@ -52,7 +52,8 @@ const getDashboard = async (req, res) => {
             pendingTasks: pendingResult.recordset[0].pendingCount
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Dashboard Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while loading dashboard." });
     }
 };
 
@@ -62,7 +63,6 @@ const getDashboard = async (req, res) => {
 const getMyCourses = async (req, res) => {
     try {
         const userID = req.user.id;
-        // Enrollment.StudentID = Students.UserID = Users.UserID
         const pool = await getPool();
 
         const result = await pool.request()
@@ -77,7 +77,8 @@ const getMyCourses = async (req, res) => {
 
         res.json(result.recordset);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("GET_MY_COURSES_ERROR:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching courses." });
     }
 };
 
@@ -166,7 +167,8 @@ const getCourseContent = async (req, res) => {
             assignments: assignmentsResult.recordset
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Course Content Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching course content." });
     }
 };
 
@@ -195,7 +197,8 @@ const getAssignments = async (req, res) => {
 
         res.json(result.recordset);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Assignments Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching assignments." });
     }
 };
 
@@ -240,7 +243,8 @@ const submitAssignment = async (req, res) => {
 
         res.json({ message: "Assignment submitted successfully", filePath });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Submit Assignment Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while submitting assignment." });
     }
 };
 
@@ -270,7 +274,156 @@ const getGrades = async (req, res) => {
 
         res.json(result.recordset);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Grades Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching grades." });
+    }
+};
+
+// =============================================
+//  COURSE MATERIALS (read-only for students)
+// =============================================
+const getCourseMaterials = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('courseId', sql.Int, courseId)
+            .query(`
+                SELECT cm.*, u.FullName AS UploaderName
+                FROM CourseMaterials cm
+                INNER JOIN Users u ON cm.UploadedBy = u.UserID
+                WHERE cm.CourseID = @courseId
+                ORDER BY cm.CreatedAt DESC
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Get Course Materials Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+// =============================================
+//  ANNOUNCEMENTS (read-only for students)
+// =============================================
+const getCourseAnnouncements = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('courseId', sql.Int, courseId)
+            .query(`
+                SELECT a.*, u.FullName AS PosterName
+                FROM Announcements a
+                INNER JOIN Users u ON a.PostedBy = u.UserID
+                WHERE a.CourseID = @courseId
+                ORDER BY a.CreatedAt DESC
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Get Announcements Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+// =============================================
+//  CALENDAR — all deadlines for enrolled courses
+// =============================================
+const getCalendarEvents = async (req, res) => {
+    try {
+        const userID = req.user.id;
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('userID', sql.Int, userID)
+            .query(`
+                SELECT a.AssignmentID, a.Title, a.Deadline, c.Name AS CourseName, c.CourseID,
+                    CASE WHEN s.SubID IS NOT NULL THEN 1 ELSE 0 END AS Submitted
+                FROM Assignment a
+                INNER JOIN Course c ON a.CourseID = c.CourseID
+                INNER JOIN Enrollment e ON e.CourseID = c.CourseID AND e.StudentID = @userID
+                LEFT JOIN Submission s ON s.AssignmentID = a.AssignmentID AND s.StudentID = @userID
+                ORDER BY a.Deadline ASC
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Get Calendar Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+// ===== DISCUSSION FORUMS =====
+const getDiscussionPosts = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('CourseID', sql.Int, courseId)
+            .query(`
+                SELECT dp.*, u.FullName AS AuthorName, u.UserType, u.ProfilePicture,
+                    (SELECT COUNT(*) FROM DiscussionReplies WHERE PostID = dp.PostID) AS ReplyCount
+                FROM DiscussionPosts dp
+                JOIN Users u ON dp.UserID = u.UserID
+                WHERE dp.CourseID = @CourseID
+                ORDER BY dp.IsPinned DESC, dp.CreatedAt DESC
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Get Discussion Posts Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const createDiscussionPost = async (req, res) => {
+    try {
+        const { courseId, title, content } = req.body;
+        const userID = req.user.id;
+        const pool = await getPool();
+        await pool.request()
+            .input('CourseID', sql.Int, courseId)
+            .input('UserID', sql.Int, userID)
+            .input('Title', sql.NVarChar, title)
+            .input('Content', sql.NVarChar, content)
+            .query(`INSERT INTO DiscussionPosts (CourseID, UserID, Title, Content) VALUES (@CourseID, @UserID, @Title, @Content)`);
+        res.json({ message: "Post created successfully" });
+    } catch (err) {
+        console.error("Create Discussion Post Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const getDiscussionReplies = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('PostID', sql.Int, postId)
+            .query(`
+                SELECT dr.*, u.FullName AS AuthorName, u.UserType, u.ProfilePicture
+                FROM DiscussionReplies dr
+                JOIN Users u ON dr.UserID = u.UserID
+                WHERE dr.PostID = @PostID
+                ORDER BY dr.CreatedAt ASC
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Get Discussion Replies Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const createDiscussionReply = async (req, res) => {
+    try {
+        const { postId, content } = req.body;
+        const userID = req.user.id;
+        const pool = await getPool();
+        await pool.request()
+            .input('PostID', sql.Int, postId)
+            .input('UserID', sql.Int, userID)
+            .input('Content', sql.NVarChar, content)
+            .query(`INSERT INTO DiscussionReplies (PostID, UserID, Content) VALUES (@PostID, @UserID, @Content)`);
+        res.json({ message: "Reply posted successfully" });
+    } catch (err) {
+        console.error("Create Discussion Reply Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
     }
 };
 
@@ -280,5 +433,12 @@ module.exports = {
     getCourseContent,
     getAssignments,
     submitAssignment,
-    getGrades
+    getGrades,
+    getCourseMaterials,
+    getCourseAnnouncements,
+    getCalendarEvents,
+    getDiscussionPosts,
+    createDiscussionPost,
+    getDiscussionReplies,
+    createDiscussionReply
 };

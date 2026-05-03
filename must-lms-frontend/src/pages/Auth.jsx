@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, Phone, ShieldCheck, LogIn, ShieldPlus, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
+import ThemeToggle from '../components/ThemeToggle';
 
 const Auth = () => {
     const location = useLocation();
@@ -18,7 +20,7 @@ const Auth = () => {
 
     React.useEffect(() => {
         const user = localStorage.getItem('user');
-        if (user) {
+        if (user && user !== 'undefined') {
             navigate('/dashboard');
         }
     }, [navigate]);
@@ -29,9 +31,10 @@ const Auth = () => {
         setSuccess('');
         setLoading(true);
 
-        const endpoint = isLogin ? 'http://localhost:3000/api/auth/login' : 'http://localhost:3000/api/auth/register';
-        const body = isLogin 
-            ? { email, password } 
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const endpoint = isLogin ? `${API_URL}/api/auth/login` : `${API_URL}/api/auth/register`;
+        const body = isLogin
+            ? { email, password }
             : { fullName, email, password, userType, phone };
 
         try {
@@ -51,13 +54,10 @@ const Auth = () => {
             if (isLogin) {
                 // Handle Login Success
                 localStorage.setItem('token', data.token);
-                const payload = JSON.parse(atob(data.token.split('.')[1]));
-                const user = {
-                    UserID: payload.id,
-                    UserType: payload.type,
-                    FullName: payload.name,
-                    Email: payload.email
-                };
+                if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+
+                // Use the user object returned from API for full profile details
+                const user = data.user;
                 localStorage.setItem('user', JSON.stringify(user));
 
                 // Navigate based on role (standard behavior)
@@ -73,6 +73,34 @@ const Auth = () => {
             }
         } catch (err) {
             setError("Server connection error. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleGoogleSuccess = async (credentialResponse) => {
+        setError('');
+        setLoading(true);
+        try {
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const response = await fetch(`${API_URL}/api/auth/google-login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ credential: credentialResponse.credential })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setError(data.message || 'Google login failed');
+                return;
+            }
+
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            navigate('/dashboard');
+        } catch (err) {
+            setError('Google login failed. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -104,6 +132,11 @@ const Auth = () => {
                     transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
                     className="absolute bottom-[-15%] right-[-10%] w-[60%] h-[60%] bg-gradient-to-tr from-cyan-500/15 to-blue-500/10 blur-[140px] rounded-full"
                 />
+            </div>
+
+            {/* Theme Toggle */}
+            <div className="absolute top-6 right-6 z-20">
+                <ThemeToggle />
             </div>
 
             <motion.div
@@ -169,14 +202,14 @@ const Auth = () => {
                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-2 italic">Institutional Role</label>
                                         <div className="relative flex p-1.5 bg-slate-50 dark:bg-black/20 rounded-2xl border border-slate-200 dark:border-white/5 overflow-hidden">
                                             {['Student', 'Assistant'].map((type) => (
-                                                <button 
-                                                    key={type} 
-                                                    type="button" 
-                                                    onClick={() => setUserType(type)} 
+                                                <button
+                                                    key={type}
+                                                    type="button"
+                                                    onClick={() => setUserType(type)}
                                                     className={`relative z-10 flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-tighter transition-all duration-300 ${userType === type ? 'text-white' : 'text-slate-400 dark:text-slate-600'}`}
                                                 >
                                                     {userType === type && (
-                                                        <motion.div 
+                                                        <motion.div
                                                             layoutId="roleSelector"
                                                             className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20 z-[-1]"
                                                         />
@@ -195,26 +228,48 @@ const Auth = () => {
 
                         <ModernInput icon={<Mail size={18} />} label="Institutional Email" placeholder="name@university.edu" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
 
-                        <div className="relative space-y-1.5">
-                            <ModernInput icon={<Lock size={18} />} label="Security Password" placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
-                            {isLogin && (
-                                <button type="button" className="absolute right-4 bottom-4 text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest italic hover:underline">Forgot?</button>
-                            )}
-                            <motion.button
-                                whileHover={{ scale: 1.02, y: -2 }}
-                                whileTap={{ scale: 0.98 }}
-                                type="submit"
-                                disabled={loading}
-                                className="w-full py-5 btn-grad rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all text-white disabled:opacity-50"
-                            >
-                                {loading ? <Loader2 className="animate-spin" size={20} /> : (isLogin ? <><LogIn size={18} /> Enter Portal</> : <><ShieldPlus size={18} /> Initialize ID</>)}
-                            </motion.button>
-                        </div>
+                        <ModernInput icon={<Lock size={18} />} label="Security Password" placeholder="••••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+
+                        {isLogin && (
+                            <div className="flex justify-end -mt-2">
+                                <Link to="/forgot-password" className="text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest italic hover:underline">Forgot Password?</Link>
+                            </div>
+                        )}
+
+                        <motion.button
+                            whileHover={{ scale: 1.02, y: -2 }}
+                            whileTap={{ scale: 0.98 }}
+                            type="submit"
+                            disabled={loading}
+                            className="w-full py-5 btn-grad rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all text-white disabled:opacity-50"
+                        >
+                            {loading ? <Loader2 className="animate-spin" size={20} /> : (isLogin ? <><LogIn size={18} /> Enter Portal</> : <><ShieldPlus size={18} /> Initialize ID</>)}
+                        </motion.button>
                     </form>
+
+                    {/* Google Sign-In Divider */}
+                    <div className="mt-8">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="flex-1 h-px bg-slate-200 dark:bg-white/10"></div>
+                            <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-600 italic">or continue with</span>
+                            <div className="flex-1 h-px bg-slate-200 dark:bg-white/10"></div>
+                        </div>
+                        <div className="flex justify-center">
+                            <GoogleLogin
+                                onSuccess={handleGoogleSuccess}
+                                onError={() => setError('Google login failed')}
+                                shape="pill"
+                                size="large"
+                                width="380"
+                                text={isLogin ? "signin_with" : "signup_with"}
+                                theme="outline"
+                            />
+                        </div>
+                    </div>
 
                     <div className="mt-10 pt-6 border-t border-slate-100 dark:border-white/5 text-center">
                         <p className="text-[10px] text-slate-400 dark:text-slate-600 font-black uppercase tracking-[0.2em] italic">
-                            MUST Engineering Portal <span className="text-blue-500/70 mx-1">•</span> Secure Access v3.0
+                            Mini LMS Portal <span className="text-blue-500/70 mx-1">•</span> Secure Access v3.0
                         </p>
                     </div>
                 </div>
@@ -226,17 +281,17 @@ const Auth = () => {
 const ModernInput = ({ icon, label, placeholder, ...props }) => (
     <div className="space-y-2.5 text-left group">
         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-600 ml-2 italic group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors">{label}</label>
-                <div className="relative">
-                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors" >
-                        {icon}
-                    </div>
-                    <input
-                        {...props}
-                        autoComplete={props.type === 'password' ? 'current-password' : 'off'}
-                        placeholder={placeholder}
-                        className="w-full bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 p-5 pl-14 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white font-bold text-sm"
-                    />
-                </div>
+        <div className="relative">
+            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-600 group-focus-within:text-blue-600 dark:group-focus-within:text-blue-400 transition-colors" >
+                {icon}
+            </div>
+            <input
+                {...props}
+                autoComplete={props.type === 'password' ? 'current-password' : 'off'}
+                placeholder={placeholder}
+                className="w-full bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-white/5 p-5 pl-14 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-500 transition-all text-slate-800 dark:text-white font-bold text-sm"
+            />
+        </div>
     </div>
 );
 

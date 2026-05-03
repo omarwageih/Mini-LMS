@@ -4,9 +4,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Clock, BookOpen, Bell, GraduationCap,
   Sparkles, Activity, ArrowRight, Award,
-  ClipboardList, Target, Users
+  ClipboardList, Target, Users, UserPlus
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { apiGet } from '../api';
 
 const Dashboard = () => {
   const [time, setTime] = useState(new Date());
@@ -32,28 +33,24 @@ const Dashboard = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/dashboard/stats', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      const data = await response.json();
-      if (response.ok) {
-        // Map data to include Lucide Icons
-        const iconMap = {
-          'Users': <Users />,
-          'BookOpen': <BookOpen />,
-          'Award': <Award />,
-          'ClipboardList': <ClipboardList />,
-          'Activity': <Activity />,
-          'Target': <Target />
-        };
-        const mappedStats = data.map(s => ({
-          ...s,
-          icon: iconMap[s.icon] || <Activity />
-        }));
-        setStats(mappedStats);
-      }
+      const data = await apiGet('/dashboard/stats');
+      
+      // Map data to include Lucide Icons
+      const iconMap = {
+        'Users': <Users />,
+        'UserPlus': <UserPlus />,
+        'BookOpen': <BookOpen />,
+        'Award': <Award />,
+        'ClipboardList': <ClipboardList />,
+        'Activity': <Activity />,
+        'Target': <Target />
+      };
+
+      const mappedStats = data.map(s => ({
+        ...s,
+        icon: iconMap[s.icon] || <Activity />
+      }));
+      setStats(mappedStats);
     } catch (err) {
       console.error("Failed to fetch stats", err);
     } finally {
@@ -80,7 +77,7 @@ const Dashboard = () => {
               Status: {user.UserType} Account
             </div>
             <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white uppercase tracking-tighter">
-              MUST <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-[#a78bfa]">University</span>
+              Mini <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-[#a78bfa]">University</span>
             </h1>
             <p className="text-slate-500 dark:text-slate-400 mt-2 font-bold italic uppercase text-xs tracking-widest">Faculty of Engineering • Computer Engineering Dept.</p>
           </motion.div>

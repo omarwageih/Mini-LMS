@@ -1,9 +1,12 @@
 const { sql, getPool } = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const { sendEmail } = require('../utils/emailService');
+const { logAudit, createNotification } = require('../utils/helpers');
 
 
-// ================= REGISTER =================
 const register = async (req, res) => {
     try {
         const { fullName, email, password, userType } = req.body;
@@ -13,60 +16,77 @@ const register = async (req, res) => {
         }
 
         const pool = await getPool();
+        
+        // Use a transaction to ensure User and Role tables are inserted together safely
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
 
-        // Only one instructor allowed
-        if (userType === "Instructor") {
-            const existing = await pool.request()
-                .input('type', sql.VarChar, 'Instructor')
-                .query('SELECT * FROM Users WHERE UserType = @type');
+        try {
+            const request = new sql.Request(transaction);
 
-            if (existing.recordset.length > 0) {
-                return res.status(400).json({ message: "Only one instructor allowed" });
+            // Only one instructor allowed
+            if (userType === "Instructor") {
+                const existingInst = await request
+                    .input('type', sql.VarChar, 'Instructor')
+                    .query('SELECT * FROM Users WHERE UserType = @type');
+
+                if (existingInst.recordset.length > 0) {
+                    await transaction.rollback();
+                    return res.status(400).json({ message: "Only one instructor allowed" });
+                }
             }
+
+            // Check duplicate email
+            const dup = await request
+                .input('email', sql.VarChar, email)
+                .query('SELECT * FROM Users WHERE Email = @email');
+            
+            if (dup.recordset.length > 0) {
+                await transaction.rollback();
+                return res.status(400).json({ message: "Email already exists" });
+            }
+
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            // Insert into Users
+            const userResult = await request
+                .input('fullName', sql.VarChar, fullName)
+                .input('emailParam', sql.VarChar, email) // Using different parameter name to avoid conflict if reused
+                .input('password', sql.VarChar, hashedPassword)
+                .input('userTypeParam', sql.VarChar, userType)
+                .query(`
+                    INSERT INTO Users (FullName, Email, Password, UserType)
+                    OUTPUT INSERTED.UserID
+                    VALUES (@fullName, @emailParam, @password, @userTypeParam)
+                `);
+
+            const userID = userResult.recordset[0].UserID;
+
+            // Insert into role-specific table
+            request.input('userID', sql.Int, userID);
+            
+            if (userType === "Instructor") {
+                await request.query('INSERT INTO Instructors (UserID) VALUES (@userID)');
+            } else if (userType === "Assistant") {
+                await request.query('INSERT INTO Assistants (UserID) VALUES (@userID)');
+            } else if (userType === "Student") {
+                await request.query('INSERT INTO Students (UserID) VALUES (@userID)');
+            }
+
+            // Commit transaction if all succeeded
+            await transaction.commit();
+
+            res.json({ message: "User registered successfully", userID });
+
+        } catch (txErr) {
+            // Rollback if anything failed inside the transaction
+            await transaction.rollback();
+            throw txErr;
         }
-
-        // Check duplicate email
-        const dup = await pool.request()
-            .input('email', sql.VarChar, email)
-            .query('SELECT * FROM Users WHERE Email = @email');
-        if (dup.recordset.length > 0) {
-            return res.status(400).json({ message: "Email already exists" });
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const userResult = await pool.request()
-            .input('fullName', sql.VarChar, fullName)
-            .input('email', sql.VarChar, email)
-            .input('password', sql.VarChar, hashedPassword)
-            .input('userType', sql.VarChar, userType)
-            .query(`
-                INSERT INTO Users (FullName, Email, Password, UserType)
-                OUTPUT INSERTED.UserID
-                VALUES (@fullName, @email, @password, @userType)
-            `);
-
-        const userID = userResult.recordset[0].UserID;
-
-        // Insert into role-specific table
-        if (userType === "Instructor") {
-            await pool.request()
-                .input('userID', sql.Int, userID)
-                .query('INSERT INTO Instructors (UserID) VALUES (@userID)');
-        } else if (userType === "Assistant") {
-            await pool.request()
-                .input('userID', sql.Int, userID)
-                .query('INSERT INTO Assistants (UserID) VALUES (@userID)');
-        } else if (userType === "Student") {
-            await pool.request()
-                .input('userID', sql.Int, userID)
-                .query('INSERT INTO Students (UserID) VALUES (@userID)');
-        }
-
-        res.json({ message: "User registered successfully", userID });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Register Error:", err);
+        res.status(500).json({ message: "An internal server error occurred during registration." });
     }
 };
 
@@ -87,44 +107,300 @@ const login = async (req, res) => {
             .query('SELECT * FROM Users WHERE Email = @Email');
 
         const user = result.recordset[0];
-
         if (!user) {
-            return res.status(400).json({ message: "User not found" });
+            return res.status(401).json({ message: "Invalid credentials" });
         }
 
-        // Check password: support both hashed (bcrypt) and plain-text (seeded data)
-        let isMatch = false;
-        if (user.Password.startsWith('$2')) {
-            // bcrypt hash
-            isMatch = await bcrypt.compare(password, user.Password);
-        } else {
-            // Plain text (e.g., seeded instructor '123456')
-            isMatch = (password === user.Password);
+        // Account lockout check
+        if (user.LockedUntil && new Date(user.LockedUntil) > new Date()) {
+            const minsLeft = Math.ceil((new Date(user.LockedUntil) - new Date()) / 60000);
+            await logAudit(user.UserID, 'LOGIN_BLOCKED', `Account locked, ${minsLeft} mins remaining`, req.ip);
+            return res.status(423).json({ message: `Account locked. Try again in ${minsLeft} minute(s).` });
         }
 
+        const isMatch = await bcrypt.compare(password, user.Password);
         if (!isMatch) {
-            return res.status(400).json({ message: "Wrong password" });
+            // Increment failed attempts
+            const attempts = (user.FailedLoginAttempts || 0) + 1;
+            const MAX_ATTEMPTS = 5;
+            const LOCKOUT_MINUTES = 15;
+
+            if (attempts >= MAX_ATTEMPTS) {
+                await pool.request()
+                    .input('Email', sql.VarChar, email)
+                    .query(`UPDATE Users SET FailedLoginAttempts = ${attempts}, LockedUntil = DATEADD(MINUTE, ${LOCKOUT_MINUTES}, GETDATE()) WHERE Email = @Email`);
+                await logAudit(user.UserID, 'ACCOUNT_LOCKED', `Locked after ${MAX_ATTEMPTS} failed attempts`, req.ip);
+                return res.status(423).json({ message: `Too many failed attempts. Account locked for ${LOCKOUT_MINUTES} minutes.` });
+            } else {
+                await pool.request()
+                    .input('Email', sql.VarChar, email)
+                    .query(`UPDATE Users SET FailedLoginAttempts = ${attempts} WHERE Email = @Email`);
+            }
+
+            await logAudit(user.UserID, 'LOGIN_FAILED', `Attempt ${attempts}/${MAX_ATTEMPTS}`, req.ip);
+            return res.status(401).json({ message: "Invalid credentials" });
         }
+
+        // Reset failed attempts on successful login
+        await pool.request()
+            .input('Email', sql.VarChar, email)
+            .query('UPDATE Users SET FailedLoginAttempts = 0, LockedUntil = NULL WHERE Email = @Email');
 
         const token = jwt.sign(
             { 
                 id: user.UserID, 
                 type: user.UserType,
                 name: user.FullName,
-                email: user.Email
+                email: user.Email,
+                profilePicture: user.ProfilePicture
             },
-            "secretkey",
-            { expiresIn: "1d" }
+            process.env.JWT_SECRET,
+            { expiresIn: "15m" }
         );
+
+        const refreshToken = jwt.sign(
+            { id: user.UserID },
+            process.env.JWT_SECRET + '_refresh',
+            { expiresIn: "7d" }
+        );
+
+        await logAudit(user.UserID, 'LOGIN_SUCCESS', `${user.UserType} logged in`, req.ip);
 
         res.json({
             message: "Login success",
-            token
+            token,
+            refreshToken,
+            user: {
+                UserID: user.UserID,
+                FullName: user.FullName,
+                Email: user.Email,
+                UserType: user.UserType,
+                ProfilePicture: user.ProfilePicture
+            }
         });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Login Error:", err);
+        res.status(500).json({ message: "An internal server error occurred during login." });
     }
 };
 
-module.exports = { register, login };
+const updateProfilePicture = async (req, res) => {
+    try {
+        const userID = req.user.id;
+        if (!req.file) {
+            return res.status(400).json({ message: "No file uploaded" });
+        }
+
+        const profilePicPath = `/uploads/profiles/${req.file.filename}`;
+        const pool = await getPool();
+
+        await pool.request()
+            .input('pic', sql.VarChar, profilePicPath)
+            .input('id', sql.Int, userID)
+            .query('UPDATE Users SET ProfilePicture = @pic WHERE UserID = @id');
+
+        res.json({ 
+            message: "Profile picture updated", 
+            profilePicture: profilePicPath 
+        });
+
+    } catch (err) {
+        console.error("Update Profile Picture Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while updating profile picture." });
+    }
+};
+
+const googleLogin = async (req, res) => {
+    try {
+        const { credential } = req.body;
+        if (!credential) {
+            return res.status(400).json({ message: "Google credential is required" });
+        }
+
+        // Verify the Google token
+        const ticket = await googleClient.verifyIdToken({
+            idToken: credential,
+            audience: process.env.GOOGLE_CLIENT_ID
+        });
+
+        const payload = ticket.getPayload();
+        const { email, name, picture } = payload;
+
+        const pool = await getPool();
+
+        // Check if user already exists
+        const existing = await pool.request()
+            .input('email', sql.VarChar, email)
+            .query('SELECT * FROM Users WHERE Email = @email');
+
+        let user;
+
+        if (existing.recordset.length > 0) {
+            // User exists — log them in
+            user = existing.recordset[0];
+        } else {
+            // New user — create as Student by default
+            const hashedPassword = await bcrypt.hash(Math.random().toString(36), 10);
+
+            const userResult = await pool.request()
+                .input('fullName', sql.VarChar, name)
+                .input('email', sql.VarChar, email)
+                .input('password', sql.VarChar, hashedPassword)
+                .input('userType', sql.VarChar, 'Student')
+                .input('profilePic', sql.VarChar, picture || null)
+                .query(`
+                    INSERT INTO Users (FullName, Email, Password, UserType, ProfilePicture)
+                    OUTPUT INSERTED.*
+                    VALUES (@fullName, @email, @password, @userType, @profilePic)
+                `);
+
+            user = userResult.recordset[0];
+
+            // Insert into Students table
+            await pool.request()
+                .input('userID', sql.Int, user.UserID)
+                .query('INSERT INTO Students (UserID) VALUES (@userID)');
+        }
+
+        // Generate JWT
+        const token = jwt.sign(
+            {
+                id: user.UserID,
+                type: user.UserType,
+                name: user.FullName,
+                email: user.Email,
+                profilePicture: user.ProfilePicture
+            },
+            process.env.JWT_SECRET,
+            { expiresIn: '1d' }
+        );
+
+        res.json({
+            message: "Google login success",
+            token,
+            user: {
+                UserID: user.UserID,
+                FullName: user.FullName,
+                Email: user.Email,
+                UserType: user.UserType,
+                ProfilePicture: user.ProfilePicture
+            }
+        });
+
+    } catch (err) {
+        console.error("Google Login Error:", err);
+        res.status(500).json({ message: "An internal server error occurred during Google login." });
+    }
+};
+
+const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: "Email is required" });
+
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('Email', sql.VarChar, email)
+            .query('SELECT * FROM Users WHERE Email = @Email');
+
+        const user = result.recordset[0];
+        if (!user) {
+            return res.json({ message: "If that email is in our system, a reset link has been sent." });
+        }
+
+        const resetToken = jwt.sign(
+            { id: user.UserID, email: user.Email },
+            process.env.JWT_SECRET + user.Password,
+            { expiresIn: '15m' }
+        );
+
+        const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}&id=${user.UserID}`;
+
+        const subject = "Password Reset - Mini LMS";
+        const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; background: #f8fafc; border-radius: 16px;">
+                <h2 style="color: #1e293b; margin-bottom: 16px;">Password Reset Request</h2>
+                <p style="color: #64748b;">Hello <strong>${user.FullName}</strong>,</p>
+                <p style="color: #64748b;">Click the button below to reset your password. This link expires in 15 minutes.</p>
+                <a href="${resetLink}" style="display: inline-block; padding: 14px 28px; background: #2563eb; color: white; text-decoration: none; border-radius: 12px; font-weight: bold; margin: 20px 0;">Reset Password</a>
+                <p style="color: #94a3b8; font-size: 12px;">If you didn't request this, ignore this email.</p>
+            </div>
+        `;
+
+        await sendEmail(email, subject, '', html);
+        res.json({ message: "If that email is in our system, a reset link has been sent." });
+
+    } catch (err) {
+        console.error("Forgot Password Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const resetPassword = async (req, res) => {
+    try {
+        const { id, token, newPassword } = req.body;
+        if (!id || !token || !newPassword) {
+            return res.status(400).json({ message: "Missing required fields" });
+        }
+
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('UserID', sql.Int, id)
+            .query('SELECT * FROM Users WHERE UserID = @UserID');
+
+        const user = result.recordset[0];
+        if (!user) {
+            return res.status(400).json({ message: "Invalid token or user." });
+        }
+
+        try {
+            jwt.verify(token, process.env.JWT_SECRET + user.Password);
+        } catch (jwtErr) {
+            return res.status(400).json({ message: "Invalid or expired reset token." });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        await pool.request()
+            .input('Password', sql.VarChar, hashedPassword)
+            .input('UserID', sql.Int, id)
+            .query('UPDATE Users SET Password = @Password WHERE UserID = @UserID');
+
+        res.json({ message: "Password has been successfully reset." });
+
+    } catch (err) {
+        console.error("Reset Password Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const refreshAccessToken = async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+        if (!refreshToken) return res.status(400).json({ message: "Refresh token required" });
+
+        const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET + '_refresh');
+
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('UserID', sql.Int, decoded.id)
+            .query('SELECT * FROM Users WHERE UserID = @UserID');
+
+        const user = result.recordset[0];
+        if (!user) return res.status(401).json({ message: "User not found" });
+
+        const newToken = jwt.sign(
+            { id: user.UserID, type: user.UserType, name: user.FullName, email: user.Email, profilePicture: user.ProfilePicture },
+            process.env.JWT_SECRET,
+            { expiresIn: "15m" }
+        );
+
+        res.json({ token: newToken });
+    } catch (err) {
+        console.error("Refresh Token Error:", err.message);
+        res.status(401).json({ message: "Invalid or expired refresh token" });
+    }
+};
+
+module.exports = { register, login, updateProfilePicture, googleLogin, forgotPassword, resetPassword, refreshAccessToken };

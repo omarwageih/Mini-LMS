@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { apiGet, apiPost } from '../api';
 import {
     User, Mail, Calendar, Award,
     Settings, Camera, Shield, GraduationCap,
-    Zap, Target, Heart, Edit2, Loader2, X, Sparkles
+    Zap, Target, Heart, Edit2, Loader2, X, Sparkles, BookOpen, ShieldCheck, Activity
 } from 'lucide-react';
 
 const Profile = () => {
@@ -13,36 +14,65 @@ const Profile = () => {
     const initialUser = JSON.parse(localStorage.getItem('user')) || { FullName: 'University User', UserType: 'Student', Email: 'user@must.edu' };
     const [userData, setUserData] = useState(initialUser);
     const user = userData; 
+    const [statsData, setStatsData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const [avatarPreview, setAvatarPreview] = useState(null);
 
     const handleUpdate = (e) => {
         e.preventDefault();
         localStorage.setItem('user', JSON.stringify(userData));
+        window.dispatchEvent(new Event('userUpdated'));
         setIsEditing(false);
     };
 
-    const [statsData, setStatsData] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const handleFileChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Show instant preview
+        const previewUrl = URL.createObjectURL(file);
+        setAvatarPreview(previewUrl);
+
+        setUploading(true);
+        const formData = new FormData();
+        formData.append('profilePic', file);
+
+        try {
+            const token = localStorage.getItem('token');
+            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+            const response = await fetch(`${API_URL}/api/auth/profile-picture`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                body: formData
+            });
+            const data = await response.json();
+            if (response.ok) {
+                const updatedUser = { ...userData, ProfilePicture: data.profilePicture };
+                setUserData(updatedUser);
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+                window.dispatchEvent(new Event('userUpdated'));
+                setAvatarPreview(null);
+            }
+        } catch (err) {
+            console.error('Upload failed:', err);
+        } finally {
+            setUploading(false);
+        }
+    };
 
     useEffect(() => {
         const loadStats = async () => {
             try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    setLoading(false);
-                    return;
-                }
-                const res = await fetch('http://localhost:3000/api/dashboard/stats', {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                const stats = await apiGet('/dashboard/stats');
+                const gpaItem = stats.find(s => s.label?.includes('GPA'));
+                const courseItem = stats.find(s => s.label?.includes('Course') || s.label?.includes('Section'));
+                setStatsData({
+                    gpa: gpaItem ? parseFloat(gpaItem.val) : 0,
+                    courseCount: courseItem ? parseInt(courseItem.val) : 0
                 });
-                if (res.ok) {
-                    const stats = await res.json();
-                    const gpaItem = stats.find(s => s.label?.includes('GPA'));
-                    const courseItem = stats.find(s => s.label?.includes('Course') || s.label?.includes('Section'));
-                    setStatsData({
-                        gpa: gpaItem ? parseFloat(gpaItem.val) : 0,
-                        courseCount: courseItem ? parseInt(courseItem.val) : 0
-                    });
-                }
             } catch (err) {
                 console.error('Profile fetch error:', err);
             } finally {
@@ -98,15 +128,34 @@ const Profile = () => {
                             <div className="absolute inset-[-10px] bg-gradient-to-r from-[#d8b4fe] via-[#a78bfa] to-[#818cf8] blur-2xl opacity-40 group-hover:opacity-60 transition-opacity rounded-full"></div>
 
                             <div className="relative w-40 h-40 rounded-full bg-white dark:bg-slate-900 p-2 shadow-xl ring-1 ring-slate-200/50 dark:ring-white/5">
-                                <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center overflow-hidden">
-                                     <span className="text-6xl font-black text-white uppercase italic">
-                                        {user.FullName?.charAt(0)}
-                                    </span>
+                                <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center overflow-hidden relative">
+                                    {(avatarPreview || userData.ProfilePicture) ? (
+                                        <img 
+                                            src={avatarPreview || `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${userData.ProfilePicture}`} 
+                                            alt="Profile" 
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <span className="text-6xl font-black text-white uppercase italic">
+                                            {userData.FullName?.charAt(0)}
+                                        </span>
+                                    )}
+                                    {uploading && (
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                            <Loader2 size={30} className="text-white animate-spin" />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                            <button className="absolute bottom-2 right-2 p-3.5 bg-white dark:bg-slate-800 text-slate-500 hover:text-[#a78bfa] rounded-full shadow-lg border border-slate-100 dark:border-white/10 hover:scale-110 active:scale-95 transition-all">
+                            <label className="absolute bottom-2 right-2 p-3.5 bg-white dark:bg-slate-800 text-slate-500 hover:text-[#a78bfa] rounded-full shadow-lg border border-slate-100 dark:border-white/10 hover:scale-110 active:scale-95 transition-all cursor-pointer">
                                 <Camera size={18} />
-                            </button>
+                                <input 
+                                    type="file" 
+                                    className="hidden" 
+                                    accept="image/*" 
+                                    onChange={handleFileChange}
+                                />
+                            </label>
                         </div>
 
                         <div className="space-y-2.5 pb-2">

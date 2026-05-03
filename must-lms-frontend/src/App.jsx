@@ -1,12 +1,18 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 // Hooks & Context
 import { useTheme } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
 
 // Components
 import Sidebar from './components/Sidebar';
+import PageWrapper from './components/PageWrapper';
+import ErrorBoundary from './components/ErrorBoundary';
+import QuickSearch from './components/QuickSearch';
+import Breadcrumb from './components/Breadcrumb';
 
 // Common Pages
 import Dashboard from './pages/Dashboard';
@@ -17,6 +23,11 @@ import Assignments from './pages/Assignments';
 import Auth from './pages/Auth';
 import Landing from './pages/Landing';
 import CourseDetails from './pages/CourseDetails';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import Calendar from './pages/Calendar';
+import Discussions from './pages/Discussions';
+import Analytics from './pages/Analytics';
 
 // Assistant Pages
 import AssistantDashboard from './pages/assistant/AssistantDashboard';
@@ -48,14 +59,23 @@ const DashboardRedirect = () => {
 };
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
-    const user = JSON.parse(localStorage.getItem('user'));
+    let user = null;
+    try {
+        const userString = localStorage.getItem('user');
+        if (userString && userString !== 'undefined') {
+            user = JSON.parse(userString);
+        }
+    } catch (e) {
+        console.error("Auth state error:", e);
+        localStorage.clear();
+    }
     
     if (!user) {
         return <Navigate to="/login" replace />;
     }
 
     if (allowedRoles && !allowedRoles.includes(user.UserType)) {
-        return <Navigate to={`/${user.UserType?.toLowerCase()}`} replace />;
+        return <Navigate to={`/${user.UserType?.toLowerCase() || 'student'}`} replace />;
     }
 
     return children;
@@ -75,6 +95,8 @@ const AppContent = () => {
 
                     {/* Auth Path */}
                     <Route path="/login" element={<Auth />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
 
                     {/* Integrated App Structure */}
                     <Route 
@@ -82,44 +104,48 @@ const AppContent = () => {
                         element={
                             <ProtectedRoute>
                                 <div className="flex h-screen overflow-hidden relative">
-                                    
+                                    <QuickSearch />
                                     <Sidebar isDark={isDarkMode} toggleTheme={toggleTheme} />
 
                                     <main className="flex-1 relative overflow-y-auto custom-scrollbar bg-slate-50/50 dark:bg-transparent">
                                         <div className="p-4 md:p-10 max-w-[1600px] mx-auto min-h-full pb-24">
-                                            
-                                            <Routes>
-                                                {/* Student Routes */}
-                                                <Route path="/student" element={<ProtectedRoute allowedRoles={['Student']}><Dashboard /></ProtectedRoute>} />
-                                                <Route path="/courses" element={<ProtectedRoute allowedRoles={['Student']}><MyCourses /></ProtectedRoute>} />
-                                                <Route path="/course/:id" element={<ProtectedRoute allowedRoles={['Student']}><CourseDetails /></ProtectedRoute>} />
-                                                <Route path="/grades" element={<ProtectedRoute allowedRoles={['Student']}><Grades /></ProtectedRoute>} />
-                                                <Route path="/assignments" element={<ProtectedRoute allowedRoles={['Student']}><Assignments /></ProtectedRoute>} />
+                                            <Breadcrumb />
+                                            <AnimatePresence mode="wait">
+                                                <Routes location={location} key={location.pathname}>
+                                                    {/* Student Routes */}
+                                                    <Route path="/student" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Dashboard /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/courses" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><MyCourses /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/course/:id" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><CourseDetails /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/grades" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Grades /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/assignments" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Assignments /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/calendar" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Calendar /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/discussions/:courseId" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Discussions /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/analytics" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Analytics /></PageWrapper></ProtectedRoute>} />
 
-                                                {/* Assistant Routes */}
-                                                <Route path="/assistant" element={<ProtectedRoute allowedRoles={['Assistant']}><AssistantDashboard /></ProtectedRoute>} />
-                                                <Route path="/assistant/assignments" element={<ProtectedRoute allowedRoles={['Assistant']}><AssistantAssignments /></ProtectedRoute>} />
-                                                <Route path="/assistant/submissions" element={<ProtectedRoute allowedRoles={['Assistant']}><AssistantSubmissions /></ProtectedRoute>} />
-                                                <Route path="/assistant/courses" element={<ProtectedRoute allowedRoles={['Assistant']}><AssistantCourses /></ProtectedRoute>} />
+                                                    {/* Assistant Routes */}
+                                                    <Route path="/assistant" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantDashboard /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/assistant/assignments" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantAssignments /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/assistant/submissions" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantSubmissions /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/assistant/courses" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantCourses /></PageWrapper></ProtectedRoute>} />
 
-                                                {/* Instructor Routes */}
-                                                <Route path="/instructor" element={<ProtectedRoute allowedRoles={['Instructor']}><InstructorDashboard /></ProtectedRoute>} />
-                                                <Route path="/instructor/students" element={<ProtectedRoute allowedRoles={['Instructor']}><ManageStudents /></ProtectedRoute>} />
-                                                <Route path="/instructor/assistants" element={<ProtectedRoute allowedRoles={['Instructor']}><ManageAssistants /></ProtectedRoute>} />
-                                                <Route path="/instructor/courses" element={<ProtectedRoute allowedRoles={['Instructor']}><ManageCourses /></ProtectedRoute>} />
-                                                <Route path="/instructor/courses/:id" element={<ProtectedRoute allowedRoles={['Instructor']}><InstructorCourseDetails /></ProtectedRoute>} />
-                                                <Route path="/instructor/submissions" element={<ProtectedRoute allowedRoles={['Instructor']}><InstructorSubmissions /></ProtectedRoute>} />
+                                                    {/* Instructor Routes */}
+                                                    <Route path="/instructor" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><InstructorDashboard /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/instructor/students" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><ManageStudents /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/instructor/assistants" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><ManageAssistants /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/instructor/courses" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><ManageCourses /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/instructor/courses/:id" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><InstructorCourseDetails /></PageWrapper></ProtectedRoute>} />
+                                                    <Route path="/instructor/submissions" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><InstructorSubmissions /></PageWrapper></ProtectedRoute>} />
 
-                                                {/* Common */}
-                                                <Route path="/profile" element={<Profile />} />
-                                                
-                                                {/* Default Dashboard Redirect when logged in */}
-                                                <Route path="/dashboard" element={<DashboardRedirect />} />
-                                                
-                                                {/* Redirect unmatched nested paths back to specific role dashboard */}
-                                                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                                            </Routes>
-
+                                                    {/* Common */}
+                                                    <Route path="/profile" element={<PageWrapper><Profile /></PageWrapper>} />
+                                                    
+                                                    {/* Default Dashboard Redirect when logged in */}
+                                                    <Route path="/dashboard" element={<DashboardRedirect />} />
+                                                    
+                                                    {/* Redirect unmatched nested paths back to specific role dashboard */}
+                                                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                                                </Routes>
+                                            </AnimatePresence>
                                         </div>
 
                                         {/* Background Aurora Effects */}
@@ -140,9 +166,15 @@ const AppContent = () => {
 
 const App = () => {
     return (
-        <Router>
-            <AppContent />
-        </Router>
+        <ErrorBoundary>
+            <GoogleOAuthProvider clientId="244325775957-hkdgd0751nkju5t343ttiin7kff89m6c.apps.googleusercontent.com">
+                <Router>
+                    <ToastProvider>
+                        <AppContent />
+                    </ToastProvider>
+                </Router>
+            </GoogleOAuthProvider>
+        </ErrorBoundary>
     );
 };
 

@@ -2,21 +2,34 @@ import React, { useState } from 'react';
 import {
   Sun, Moon, LayoutDashboard, BookOpen,
   User, LogOut, GraduationCap, Award, ClipboardList,
-  Users, PlusSquare, Menu, X
+  Users, PlusSquare, Menu, X, CalendarDays, Search
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import NotificationBell from './NotificationBell';
 
 const Sidebar = ({ isDark, toggleTheme }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const user = JSON.parse(localStorage.getItem('user')) || {
-    FullName: 'Guest User',
-    Email: 'guest@university.edu',
-    UserType: 'Student'
-  };
+  const [user, setUser] = useState(
+    JSON.parse(localStorage.getItem('user')) || {
+      FullName: 'Guest User',
+      Email: 'guest@university.edu',
+      UserType: 'Student'
+    }
+  );
+
+  React.useEffect(() => {
+    const handleUpdate = () => {
+      const updatedUser = JSON.parse(localStorage.getItem('user'));
+      if (updatedUser) setUser(updatedUser);
+    };
+
+    window.addEventListener('userUpdated', handleUpdate);
+    return () => window.removeEventListener('userUpdated', handleUpdate);
+  }, []);
 
   const getMenuItems = () => {
     const baseItems = [
@@ -37,9 +50,11 @@ const Sidebar = ({ isDark, toggleTheme }) => {
     ];
 
     const studentItems = [
-      { icon: <BookOpen size={22} />, label: 'My Courses', path: '/student' },
+      { icon: <BookOpen size={22} />, label: 'My Courses', path: '/courses' },
       { icon: <ClipboardList size={22} />, label: 'Assignments', path: '/assignments' },
       { icon: <Award size={22} />, label: 'My Grades', path: '/grades' },
+      { icon: <CalendarDays size={22} />, label: 'Calendar', path: '/calendar' },
+      { icon: <GraduationCap size={22} />, label: 'Analytics', path: '/analytics' },
     ];
 
     const commonEnd = [
@@ -74,20 +89,22 @@ const Sidebar = ({ isDark, toggleTheme }) => {
 
         {/* 🚀 Logo Section */}
         <div className="p-8 mb-4">
-          <div className="flex items-center gap-4">
-            <div className="relative w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/20 text-white group cursor-pointer">
-              <GraduationCap size={28} className="group-hover:rotate-12 transition-transform" />
-              <div className="absolute inset-0 bg-blue-400 blur-xl opacity-20 group-hover:opacity-40 transition-opacity"></div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="relative w-12 h-12 rounded-2xl overflow-hidden shadow-xl shadow-blue-500/20 group cursor-pointer">
+                <img src="/logo.png" alt="Mini LMS" className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+              </div>
+              <div className="flex flex-col">
+                <h1 className="text-2xl font-black tracking-tighter leading-none italic">
+                  <span className="dark:text-white transition-colors duration-500">Mini</span>
+                  <span className="text-blue-600 dark:text-blue-400"> LMS</span>
+                </h1>
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-500 dark:text-blue-400 mt-1">
+                  {user.UserType} Portal
+                </span>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <h1 className="text-2xl font-black tracking-tighter leading-none italic">
-                <span className="dark:text-white transition-colors duration-500">MUST</span>
-                <span className="text-blue-600 dark:text-blue-400"> LMS</span>
-              </h1>
-              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-500 dark:text-blue-400 mt-1">
-                {user.UserType} Portal
-              </span>
-            </div>
+            <NotificationBell />
           </div>
         </div>
 
@@ -120,12 +137,28 @@ const Sidebar = ({ isDark, toggleTheme }) => {
           })}
         </nav>
 
+        {/* Quick Search Hint */}
+        <div className="px-6 py-2">
+          <button
+            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-400 hover:text-blue-500 hover:border-blue-500/20 transition-all group"
+          >
+            <Search size={16} className="group-hover:text-blue-500" />
+            <span className="text-[10px] font-bold flex-1 text-left">Search pages...</span>
+            <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-800 text-[8px] font-black text-slate-400 rounded border border-slate-200 dark:border-white/10">⌘K</kbd>
+          </button>
+        </div>
+
         {/* 🛠 Bottom Actions */}
         <div className="p-6 space-y-4 border-t border-slate-100 dark:border-white/5">
           {/* User Quick Info */}
           <div className="px-4 py-2 flex items-center gap-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-transparent dark:border-white/5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-lg shadow-blue-500/20 uppercase">
-              {user.FullName?.charAt(0)}
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-lg shadow-blue-500/20 uppercase overflow-hidden">
+              {user.ProfilePicture ? (
+                <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${user.ProfilePicture}`} alt="" className="w-full h-full object-cover" />
+              ) : (
+                user.FullName?.charAt(0)
+              )}
             </div>
             <div className="flex flex-col overflow-hidden">
               <span className="text-[11px] font-black dark:text-white truncate italic uppercase tracking-tighter">{user.FullName}</span>
@@ -193,12 +226,12 @@ const Sidebar = ({ isDark, toggleTheme }) => {
 
               <div className="p-8 mb-4">
                 <div className="flex items-center gap-4">
-                  <div className="relative w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/20 text-white">
-                    <GraduationCap size={28} />
+                  <div className="relative w-12 h-12 rounded-2xl overflow-hidden shadow-xl shadow-blue-500/20">
+                    <img src="/logo.png" alt="Mini LMS" className="w-full h-full object-cover" />
                   </div>
                   <div className="flex flex-col">
                     <h1 className="text-2xl font-black tracking-tighter leading-none italic">
-                      <span className="dark:text-white">MUST</span>
+                      <span className="dark:text-white">Mini</span>
                       <span className="text-blue-600 dark:text-blue-400"> LMS</span>
                     </h1>
                     <span className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-500 dark:text-blue-400 mt-1">

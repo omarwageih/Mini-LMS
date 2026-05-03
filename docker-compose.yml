@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./LMS_Backend
+    container_name: mini-lms-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - DB_SERVER=${DB_SERVER}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JWT_SECRET=${JWT_SECRET}
+      - FRONTEND_URL=http://localhost
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+    volumes:
+      - backend-uploads:/app/uploads
+    networks:
+      - lms-network
+
+  frontend:
+    build:
+      context: ./must-lms-frontend
+      args:
+        - VITE_API_URL=http://localhost
+    container_name: mini-lms-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - lms-network
+
+volumes:
+  backend-uploads:
+
+networks:
+  lms-network:
+    driver: bridge

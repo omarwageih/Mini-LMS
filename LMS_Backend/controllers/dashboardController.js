@@ -77,7 +77,8 @@ const getStats = async (req, res) => {
 
         res.json(stats);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Get Dashboard Stats Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while fetching dashboard stats." });
     }
 };
 

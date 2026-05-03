@@ -99,7 +99,7 @@ const AssistantSubmissions = () => {
                                         <td className="p-5 text-xs font-bold text-slate-400 uppercase">{s.CourseName}</td>
                                         <td className="p-5">
                                             {s.FilePath ? (
-                                                <a href={`http://localhost:3000/uploads/submissions/${s.FilePath}`} target="_blank" rel="noreferrer"
+                                                <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/uploads/submissions/${s.FilePath}`} target="_blank" rel="noreferrer"
                                                     className="flex items-center gap-1 text-blue-500 text-xs font-bold hover:underline">
                                                     <Download size={14} /> View
                                                 </a>
