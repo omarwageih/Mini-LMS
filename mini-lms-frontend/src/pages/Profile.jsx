@@ -11,7 +11,7 @@ const Profile = () => {
     const [isEditing, setIsEditing] = useState(false);
     
     // Get user from localStorage
-    const initialUser = JSON.parse(localStorage.getItem('user')) || { FullName: 'University User', UserType: 'Student', Email: 'user@must.edu' };
+    const initialUser = JSON.parse(localStorage.getItem('user')) || { FullName: 'University User', UserType: 'Student', Email: 'user@mini.edu' };
     const [userData, setUserData] = useState(initialUser);
     const user = userData; 
     const [statsData, setStatsData] = useState(null);

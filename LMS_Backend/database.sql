@@ -1,5 +1,5 @@
 -- =============================================
---  MUST LMS - Complete Database Schema
+--  Mini LMS - Complete Database Schema
 --  Run this in SSMS on your LMS database
 -- =============================================
 

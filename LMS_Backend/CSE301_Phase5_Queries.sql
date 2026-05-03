@@ -9,21 +9,21 @@
 
 -- Insert Students (15 Records)
 INSERT INTO Users (FullName, Email, Password, UserType) VALUES 
-('Ahmed Ali', 'ahmed@std.must.edu.eg', 'pass123', 'Student'),
-('Sara Youssef', 'sara@std.must.edu.eg', 'pass123', 'Student'),
-('Omar Khaled', 'omar@std.must.edu.eg', 'pass123', 'Student'),
-('Mona Hassan', 'mona@std.must.edu.eg', 'pass123', 'Student'),
-('Karim Nabil', 'karim@std.must.edu.eg', 'pass123', 'Student'),
-('Nour Gamal', 'nour@std.must.edu.eg', 'pass123', 'Student'),
-('Youssef Tarek', 'youssef@std.must.edu.eg', 'pass123', 'Student'),
-('Salma Wael', 'salma@std.must.edu.eg', 'pass123', 'Student'),
-('Mahmoud Saeed', 'mahmoud@std.must.edu.eg', 'pass123', 'Student'),
-('Hana Mostafa', 'hana@std.must.edu.eg', 'pass123', 'Student'),
-('Ziad Ibrahim', 'ziad@std.must.edu.eg', 'pass123', 'Student'),
-('Laila Amr', 'laila@std.must.edu.eg', 'pass123', 'Student'),
-('Tarek Hisham', 'tarekh@std.must.edu.eg', 'pass123', 'Student'),
-('Farah Ezzat', 'farah@std.must.edu.eg', 'pass123', 'Student'),
-('Mostafa Kamal', 'mostafa@std.must.edu.eg', 'pass123', 'Student');
+('Ahmed Ali', 'ahmed@std.mini.edu.eg', 'pass123', 'Student'),
+('Sara Youssef', 'sara@std.mini.edu.eg', 'pass123', 'Student'),
+('Omar Khaled', 'omar@std.mini.edu.eg', 'pass123', 'Student'),
+('Mona Hassan', 'mona@std.mini.edu.eg', 'pass123', 'Student'),
+('Karim Nabil', 'karim@std.mini.edu.eg', 'pass123', 'Student'),
+('Nour Gamal', 'nour@std.mini.edu.eg', 'pass123', 'Student'),
+('Youssef Tarek', 'youssef@std.mini.edu.eg', 'pass123', 'Student'),
+('Salma Wael', 'salma@std.mini.edu.eg', 'pass123', 'Student'),
+('Mahmoud Saeed', 'mahmoud@std.mini.edu.eg', 'pass123', 'Student'),
+('Hana Mostafa', 'hana@std.mini.edu.eg', 'pass123', 'Student'),
+('Ziad Ibrahim', 'ziad@std.mini.edu.eg', 'pass123', 'Student'),
+('Laila Amr', 'laila@std.mini.edu.eg', 'pass123', 'Student'),
+('Tarek Hisham', 'tarekh@std.mini.edu.eg', 'pass123', 'Student'),
+('Farah Ezzat', 'farah@std.mini.edu.eg', 'pass123', 'Student'),
+('Mostafa Kamal', 'mostafa@std.mini.edu.eg', 'pass123', 'Student');
 
 -- (Assuming the Users above got IDs 2 to 16, as ID 1 is the instructor from your original script)
 INSERT INTO Students (UserID, Academic_Year, Major, GPA) VALUES 

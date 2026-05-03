@@ -1,6 +1,6 @@
-# MUST University LMS - Final Integrated Version 🎓
+# Mini LMS - Final Integrated Version 🎓
 
-Welcome to the official repository for the **MUST University Learning Management System**. This project was developed as the final submission for the **CSE 301 — Database Systems Project**.
+Welcome to the official repository for the **Mini Learning Management System**. This project was developed as the final submission for the **CSE 301 — Database Systems Project**.
 
 It is a full-featured, production-ready system that vastly exceeds the standard CRUD requirements, featuring enterprise-grade security, interactive markdown, and local video streaming.
 
@@ -71,10 +71,10 @@ node app.js
 
 ### 3. Frontend
 ```bash
-cd must-lms-frontend
+cd mini-lms-frontend
 npm install
 npm run dev
 ```
 
 ---
-**Developed for MUST Engineering - CSE Department.**
+**Developed for Mini Engineering - CSE Department.**

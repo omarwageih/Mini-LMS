@@ -99,7 +99,7 @@ const ManageStudents = () => {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Email Address</label>
-                                <input type="email" placeholder="e.g. student@must.edu" required value={form.email} onChange={e => setForm({...form, email: e.target.value})}
+                                <input type="email" placeholder="e.g. student@mini.edu" required value={form.email} onChange={e => setForm({...form, email: e.target.value})}
                                     className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-5 rounded-[1.5rem] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all text-sm font-bold text-slate-800 dark:text-white" />
                             </div>
                             <div className="space-y-2">

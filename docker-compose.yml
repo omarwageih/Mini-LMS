@@ -25,7 +25,7 @@ services:
 
   frontend:
     build:
-      context: ./must-lms-frontend
+      context: ./mini-lms-frontend
       args:
         - VITE_API_URL=http://localhost
     container_name: mini-lms-frontend
