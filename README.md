@@ -1,72 +1,80 @@
 # MUST University LMS - Final Integrated Version 🎓
 
-Welcome to the official repository for the **MUST University Learning Management System**. This project has been significantly upgraded from a basic prototype to a full-featured, production-ready system.
+Welcome to the official repository for the **MUST University Learning Management System**. This project was developed as the final submission for the **CSE 301 — Database Systems Project**.
+
+It is a full-featured, production-ready system that vastly exceeds the standard CRUD requirements, featuring enterprise-grade security, interactive markdown, and local video streaming.
 
 ---
 
 ## 🚀 Project Overview
-This system is a full-stack educational platform that manages courses, assignments, attendance, and grading. It supports three primary user roles: **Instructors, Assistants, and Students**, each with a dedicated and feature-rich dashboard.
+This system is a full-stack educational platform that manages courses, assignments, attendance, discussions, and grading. It supports three primary user roles: **Instructors, Assistants, and Students**, each with a dedicated and feature-rich dashboard.
 
 ---
 
 ## 🛠️ Tech Stack
-- **Frontend**: React, Vite, Tailwind CSS, Framer Motion.
+- **Frontend**: React (Vite), Tailwind CSS, Framer Motion, Zustand (State Management), `@uiw/react-md-editor` (Markdown + LaTeX).
 - **Backend**: Node.js, Express.js, MSSQL (SQL Server).
-- **Security**: JWT (Authentication), Bcrypt (Password Hashing).
-- **Files**: Multer (File Upload Handling).
+- **Security**: JWT (Access & Refresh Tokens), Bcrypt (Password Hashing), Helmet, Zod (Data Validation), Rate Limiting.
+- **Media**: Multer (File Uploads), React-Player (Local Video Streaming).
 
 ---
 
-## 📟 For the BACKEND TEAM
-We have transformed the backend into a robust API service. Here is what happened:
-
-### ✅ What we Added:
-- **Role-Based Controllers**: Created specialized controllers for `Instructor`, `Assistant`, and `Student` to handle complex business logic.
-- **Automatic Migrations**: Added a `migrate.js` system that automatically ensures the database schema is up-to-date (e.g., adding the `FilePath` column to Submissions).
-- **File Upload Engine**: Integrated `Multer` to handle physical file storage for student assignments.
-- **Seed Data Management**: Implemented a hybrid authentication check that supports both seeded plain-text passwords and secure Bcrypt hashes.
-
-### ⚡ Enhancements:
-- **Database Pooling**: Refactored `db.js` to use connection pooling, drastically improving performance under load.
-- **Environment Isolation**: Moved all sensitive credentials (DB Port, User, Password) to a `.env` file structure.
-- **Clean Routing**: Separated routes into logical entities (`auth`, `instructor`, `assistant`, `student`) for easier maintenance.
+## 🏆 CSE 301 Deliverables Included
+This repository contains everything needed for the **CSE 301 Database Project** defense:
+1. **Frontend & Backend Source Code**: Fully integrated and working.
+2. **`LMS_Backend/database.sql`**: The DDL script for generating the entire SQL Server relational schema.
+3. **`LMS_Backend/CSE301_Phase5_Queries.sql`**: The Phase 5 script containing:
+   - Meaningful Sample Data (15+ records per table).
+   - 10 Advanced SQL Queries (INNER/LEFT JOIN, GROUP BY, HAVING, AVG, SUM).
+   - `UPDATE` and `DELETE` operations.
+   - 2 SQL Views (Student Academic Info & Course Enrollment Summary).
+   - 2 Stored Procedures (Safe Student Enrollment & Final Grade Calculation).
 
 ---
 
-## 🎨 For the FRONTEND TEAM
-The UI has been completely redesigned to offer a premium, glassmorphic experience.
+## ✨ Features
 
-### ✅ What we Added:
-- **Instructor Suite**: New pages for managing courses, students, and teaching assistants.
-- **Assistant Dashboard**: Dedicated interface for viewing student submissions and recording grades.
-- **Dynamic File Handling**: Added file upload components that interact with the backend storage system.
-- **Role-based Navigation**: The sidebar and dashboard content now adapt dynamically based on the user's role.
+### 🛡️ Enterprise Security & Backend
+- **Advanced Authentication**: JWT access and refresh token rotation, bcrypt password hashing.
+- **Role-Based Access Control**: Route guards and API middleware restricted by Instructor, Assistant, or Student roles.
+- **Security Hardening**: Zod schema validation to prevent SQL injection, Express Rate Limiting to prevent brute force attacks, and an Audit Log that tracks security events.
+- **Account Lockout**: Automatic 15-minute account lockout after 5 failed login attempts.
 
-### ⚡ Enhancements:
-- **Visual Polish**: implemented a high-end interface using CSS Glassmorphism and modern typography (Inter/Roboto).
-- **Centralized API Logic**: All API calls are now managed through a unified service layer to simplify debugging.
-- **Responsive Design**: The entire application is now fully responsive, supporting both desktop and mobile users.
+### 🎨 Premium UI/UX
+- **Glassmorphism Design**: High-end interface using CSS Glassmorphism, modern typography (Outfit font), and deep navy gradients.
+- **Dark Mode**: Fully supported Light and Dark mode themes, managed via local storage.
+- **Framer Motion Animations**: Smooth page transitions, modal popups, and micro-interactions.
+- **In-App Notifications**: Real-time polling dropdown notification bell.
 
----
-
-## 🏁 What we Completed
-- **Seamless Integration**: The bridge between React and SQL Server is now fully stable.
-- **The Grading Workflow**: Students can upload -> Assistants can grade -> Instructors can monitor.
-- **Database Resilience**: Fixed all previous "Login Failed" and "Table not found" errors by standardizing the connection settings.
+### 📚 Advanced Learning Tools (v2)
+- **Interactive Markdown**: Discussion forums support rich text, code block syntax highlighting, and LaTeX math equations (via KaTeX).
+- **Local Video Streaming**: Course materials automatically detect `.mp4`/`.webm` files and render an embedded cinematic video player that streams directly from the Node backend (No AWS required).
+- **Student Analytics**: A dedicated dashboard for students to track their GPA, assignment scores, and attendance visually.
 
 ---
 
-## 💻 How to Run
-1.  **Backend**:
-    - `cd LMS_Backend`
-    - `npm install`
-    - Configure your `.env` file.
-    - `node app.js`
-2.  **Frontend**:
-    - `cd must-lms-frontend`
-    - `npm install`
-    - `npm run dev`
+## 💻 How to Run Locally
+
+### 1. Database Setup
+1. Open SQL Server Management Studio (SSMS).
+2. Create a new database named `LMS`.
+3. Execute `LMS_Backend/database.sql` to build the tables.
+4. Execute `LMS_Backend/CSE301_Phase5_Queries.sql` to populate the sample data and create the Views/Procedures.
+
+### 2. Backend
+```bash
+cd LMS_Backend
+npm install
+# Copy .env.example to .env and configure your SQL Server credentials
+node app.js
+```
+
+### 3. Frontend
+```bash
+cd must-lms-frontend
+npm install
+npm run dev
+```
 
 ---
-
-**Original Project Forked and Enhanced by the MUST Engineering Team.**
+**Developed for MUST Engineering - CSE Department.**
