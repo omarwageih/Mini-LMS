@@ -5,7 +5,7 @@ import {
     Users, UserPlus, BookOpen, ClipboardList,
     Sparkles, ArrowRight, GraduationCap, Activity
 } from 'lucide-react';
-import { apiGet } from '../../api';
+import { apiGet } from '../../services/api';
 import { format } from 'date-fns';
 
 const InstructorDashboard = () => {

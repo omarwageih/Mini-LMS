@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiGet, apiPost } from '../api';
+import { apiGet, apiPost, studentAPI } from '../services/api';
 import {
     User, Mail, Calendar, Award,
     Settings, Camera, Shield, GraduationCap,
-    Zap, Target, Heart, Edit2, Loader2, X, Sparkles, BookOpen, ShieldCheck, Activity
+    Zap, Target, Heart, Edit2, Loader2, X, Sparkles, BookOpen, ShieldCheck, Activity, CheckCircle2
 } from 'lucide-react';
 
 const Profile = () => {
@@ -17,13 +17,60 @@ const Profile = () => {
     const [statsData, setStatsData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
     const [avatarPreview, setAvatarPreview] = useState(null);
 
-    const handleUpdate = (e) => {
+    const handleUpdate = async (e) => {
         e.preventDefault();
-        localStorage.setItem('user', JSON.stringify(userData));
-        window.dispatchEvent(new Event('userUpdated'));
-        setIsEditing(false);
+        setSyncing(true);
+        setIsSuccess(false);
+        
+        try {
+            // Case-insensitive check for student role
+            const isStudent = user.UserType?.toLowerCase() === 'student';
+            
+            if (isStudent) {
+                // Prepare sync data with defaults
+                const syncData = {
+                    fullName: userData.FullName || '',
+                    email: userData.Email || '',
+                    academicYear: parseInt(userData.Academic_Year) || 1,
+                    major: userData.Major || 'Computer Engineering',
+                    gpa: parseFloat(userData.GPA) || 0,
+                    studentCode: userData.StudentCode || ''
+                };
+                
+                await studentAPI.updateProfile(syncData);
+                
+                // Update statsData so UI elements (like the GPA circle) reflect changes immediately
+                setStatsData(prev => ({
+                    ...prev,
+                    gpa: syncData.gpa,
+                    studentCode: syncData.studentCode
+                }));
+            }
+            
+            // 1. Mark as success
+            setIsSuccess(true);
+            
+            // 2. Update local session
+            localStorage.setItem('user', JSON.stringify(userData));
+            window.dispatchEvent(new Event('userUpdated'));
+            
+            // 3. Finalize after animation
+            setTimeout(() => {
+                setIsEditing(false);
+                setSyncing(false);
+                setIsSuccess(false);
+            }, 1000);
+
+        } catch (err) {
+            console.error('Profile update failed:', err);
+            const msg = err.response?.data?.message || 'Failed to sync profile with server.';
+            alert(msg);
+            setSyncing(false);
+        }
     };
 
     const handleFileChange = async (e) => {
@@ -66,13 +113,36 @@ const Profile = () => {
     useEffect(() => {
         const loadStats = async () => {
             try {
-                const stats = await apiGet('/dashboard/stats');
-                const gpaItem = stats.find(s => s.label?.includes('GPA'));
-                const courseItem = stats.find(s => s.label?.includes('Course') || s.label?.includes('Section'));
-                setStatsData({
-                    gpa: gpaItem ? parseFloat(gpaItem.val) : 0,
-                    courseCount: courseItem ? parseInt(courseItem.val) : 0
-                });
+                // If student, get full dashboard data for sync
+                if (initialUser.UserType === 'Student') {
+                    const { studentAPI } = await import('../services/api');
+                    const dashData = await studentAPI.getDashboard().then(r => r.data);
+                    
+                    // Sync userData state with latest from DB
+                    setUserData(prev => ({
+                        ...prev,
+                        FullName: dashData.fullName,
+                        Email: dashData.email,
+                        GPA: dashData.gpa,
+                        StudentCode: dashData.studentCode,
+                        Academic_Year: dashData.academicYear,
+                        Major: dashData.major
+                    }));
+
+                    setStatsData({
+                        gpa: dashData.gpa,
+                        courseCount: dashData.courseCount,
+                        studentCode: dashData.studentCode
+                    });
+                } else {
+                    const stats = await apiGet('/dashboard/stats');
+                    const gpaItem = stats.find(s => s.label?.includes('GPA'));
+                    const courseItem = stats.find(s => s.label?.includes('Course') || s.label?.includes('Section'));
+                    setStatsData({
+                        gpa: gpaItem ? parseFloat(gpaItem.val) : 0,
+                        courseCount: courseItem ? parseInt(courseItem.val) : 0
+                    });
+                }
             } catch (err) {
                 console.error('Profile fetch error:', err);
             } finally {
@@ -263,11 +333,16 @@ const Profile = () => {
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-12">
-                                <ModernInfoItem icon={<Mail size={20} />} label="Terminal Email" value={user.Email} />
+                                <ModernInfoItem icon={<Mail size={20} />} label="Terminal Email" value={userData.Email} />
+                                <ModernInfoItem 
+                                    icon={<ShieldCheck size={20} />} 
+                                    label="Student ID" 
+                                    value={userData.StudentCode || "NOT_SET"} 
+                                />
                                 <ModernInfoItem 
                                     icon={<GraduationCap size={20} />} 
                                     label={user.UserType === 'Student' ? "Academic Level" : "Designation"} 
-                                    value={user.UserType === 'Student' ? profileDetails.Level : user.UserType} 
+                                    value={user.UserType === 'Student' ? `Level ${userData.Academic_Year || 4}` : user.UserType} 
                                 />
                                 <ModernInfoItem icon={<Calendar size={20} />} label="Join Session" value={profileDetails.JoinDate} />
                                 <ModernInfoItem 
@@ -313,12 +388,49 @@ const Profile = () => {
                                     value={userData.Email} 
                                     onChange={(e) => setUserData({...userData, Email: e.target.value})} 
                                 />
+
+                                {userData.UserType === 'Student' && (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <ProfileInput 
+                                            label="Student ID" 
+                                            placeholder="e.g. 20210001"
+                                            value={userData.StudentCode || ''} 
+                                            onChange={(e) => setUserData({...userData, StudentCode: e.target.value})} 
+                                        />
+                                        <ProfileInput 
+                                            label="Current GPA" 
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max="4"
+                                            value={userData.GPA || ''} 
+                                            onChange={(e) => setUserData({...userData, GPA: e.target.value})} 
+                                        />
+                                    </div>
+                                )}
                                 
                                 <button 
                                     type="submit"
-                                    className="w-full py-5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] shadow-xl active:scale-95 transition-all mt-4"
+                                    disabled={syncing}
+                                    className={`w-full py-5 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] shadow-xl active:scale-95 transition-all mt-4 flex items-center justify-center gap-3 ${
+                                        isSuccess ? 'bg-emerald-500 text-white' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
+                                    }`}
                                 >
-                                    Confirm Updates
+                                    {syncing ? (
+                                        isSuccess ? (
+                                            <>
+                                                <CheckCircle2 size={16} /> Identity Synced
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Loader2 size={16} className="animate-spin" /> Synchronizing...
+                                            </>
+                                        )
+                                    ) : (
+                                        <>
+                                            <Sparkles size={16} /> Confirm Updates
+                                        </>
+                                    )}
                                 </button>
                             </form>
                         </motion.div>

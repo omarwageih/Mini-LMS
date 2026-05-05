@@ -1,14 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, requireRole } = require('../middleware/authMiddleware');
-const upload = require('../middleware/upload');
-const multer = require('multer');
-const path = require('path');
-const { validate, validateParams, addAssistantSchema, addStudentSchema, enrollStudentSchema, assignAssistantSchema, createCourseSchema, addWeekSchema, addMaterialSchema, addLectureSchema, createAssignmentSchema, gradeSubmissionSchema, idParamSchema } = require('../middleware/validation');
+const { verifyToken, requireRole, requireCourseOwner } = require('../middleware/authMiddleware');
+const { materialsUpload } = require('../middleware/upload');
+const { validate, validateParams, addAssistantSchema, addStudentSchema, enrollStudentSchema, assignAssistantSchema, createCourseSchema, addWeekSchema, addMaterialSchema, addLectureSchema, createAssignmentSchema, instructorGradeSubmissionSchema, createAnnouncementSchema, idParamSchema } = require('../middleware/validation');
 const {
     getAssistants, addAssistant, deleteAssistant, assignAssistantToCourse,
     getStudents, addStudent, deleteStudent, enrollStudent,
-    getCourses, createCourse,
+    getCourses, createCourse, deleteCourse,
     addWeek, addMaterial, addLecture,
     createAssignment,
     getSubmissions,
@@ -17,13 +15,7 @@ const {
     getAnnouncements, createAnnouncement, deleteAnnouncement,
     gradeSubmission
 } = require('../controllers/instructorController');
-
-// Materials upload config
-const materialsStorage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/materials/'),
-    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
-});
-const materialsUpload = multer({ storage: materialsStorage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
+const { getDiscussionPosts, createDiscussionPost, getDiscussionReplies, createDiscussionReply } = require('../controllers/studentController');
 
 // All routes require Instructor role
 router.use(verifyToken, requireRole('Instructor'));
@@ -43,28 +35,35 @@ router.post('/students/enroll', validate(enrollStudentSchema), enrollStudent);
 // ===== Courses =====
 router.get('/courses', getCourses);
 router.post('/courses', validate(createCourseSchema), createCourse);
-router.get('/courses/:courseId/content', getCourseContent);
+router.delete('/courses/:id', validateParams(idParamSchema), deleteCourse);
+router.get('/courses/:courseId/content', requireCourseOwner, getCourseContent);
 
 // ===== Content =====
-router.post('/weeks', validate(addWeekSchema), addWeek);
-router.post('/materials', validate(addMaterialSchema), addMaterial);
-router.post('/lectures', validate(addLectureSchema), addLecture);
+router.post('/weeks', requireCourseOwner, validate(addWeekSchema), addWeek);
+router.post('/materials', requireCourseOwner, materialsUpload.single('file'), validate(addMaterialSchema), addMaterial);
+router.post('/lectures', requireCourseOwner, validate(addLectureSchema), addLecture);
 
 // ===== Assignments =====
-router.post('/assignments', validate(createAssignmentSchema), createAssignment);
+router.post('/assignments', requireCourseOwner, validate(createAssignmentSchema), createAssignment);
 
 // ===== Submissions & Grading =====
 router.get('/submissions', getSubmissions);
-router.post('/submissions/grade', validate(gradeSubmissionSchema), gradeSubmission);
+router.post('/submissions/grade', validate(instructorGradeSubmissionSchema), gradeSubmission);
 
 // ===== Course Materials =====
-router.get('/courses/:courseId/materials', getCourseMaterials);
-router.post('/courses/materials', materialsUpload.single('file'), uploadCourseMaterial);
+router.get('/courses/:courseId/materials', requireCourseOwner, getCourseMaterials);
+router.post('/courses/materials', materialsUpload.single('file'), requireCourseOwner, uploadCourseMaterial);
 router.delete('/courses/materials/:id', deleteCourseMaterial);
 
 // ===== Announcements =====
-router.get('/courses/:courseId/announcements', getAnnouncements);
-router.post('/courses/announcements', createAnnouncement);
+router.get('/courses/:courseId/announcements', requireCourseOwner, getAnnouncements);
+router.post('/courses/announcements', requireCourseOwner, validate(createAnnouncementSchema), createAnnouncement);
 router.delete('/courses/announcements/:id', deleteAnnouncement);
+
+// ===== Discussions =====
+router.get('/discussions/:courseId', requireCourseOwner, getDiscussionPosts);
+router.post('/discussions', requireCourseOwner, createDiscussionPost);
+router.get('/discussions/replies/:postId', getDiscussionReplies);
+router.post('/discussions/reply', createDiscussionReply);
 
 module.exports = router;

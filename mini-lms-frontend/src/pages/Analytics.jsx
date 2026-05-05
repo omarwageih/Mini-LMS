@@ -4,7 +4,7 @@ import {
     TrendingUp, BookOpen, Award, Target, BarChart3,
     PieChart, Activity, Clock, Zap
 } from 'lucide-react';
-import { apiGet } from '../api';
+import { apiGet } from '../services/api';
 import { SkeletonCard } from '../components/Skeletons';
 
 const Analytics = () => {

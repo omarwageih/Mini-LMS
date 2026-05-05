@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ClipboardList, Download, User, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { apiGet, apiPost } from '../../api';
+import { apiGet, apiPost } from '../../services/api';
 
 const AssistantSubmissions = () => {
     const [submissions, setSubmissions] = useState([]);
@@ -52,8 +52,8 @@ const AssistantSubmissions = () => {
                             <select value={gradeForm.submissionID} onChange={e => setGradeForm({...gradeForm, submissionID: e.target.value})} required
                                 className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4 rounded-2xl outline-none focus:border-blue-500 transition-all text-sm text-slate-800 dark:text-white">
                                 <option value="">Select Submission</option>
-                                {submissions.filter(s => s.Score === null).map(s => (
-                                    <option key={s.SubmissionID} value={s.SubmissionID}>#{s.SubmissionID} — {s.StudentName} ({s.AssignmentTitle})</option>
+                                {submissions.map(s => (
+                                    <option key={s.SubmissionID} value={s.SubmissionID}>#{s.SubmissionID} — {s.StudentName} ({s.AssignmentTitle}) {s.Score !== null ? `[Current: ${s.Score}]` : '[Pending]'}</option>
                                 ))}
                             </select>
                         </div>
@@ -85,9 +85,9 @@ const AssistantSubmissions = () => {
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                 {submissions.length === 0 ? (
-                                    <tr><td colSpan={7} className="p-8 text-center text-slate-400 text-sm italic">No submissions yet</td></tr>
+                                    <tr><td colSpan={8} className="p-8 text-center text-slate-400 text-sm italic">No submissions yet</td></tr>
                                 ) : submissions.map(s => (
-                                    <tr key={s.SubmissionID} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors">
+                                    <tr key={s.SubmissionID} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
                                         <td className="p-5 text-xs font-bold text-slate-500">#{s.SubmissionID}</td>
                                         <td className="p-5">
                                             <div className="flex items-center gap-3">
@@ -99,7 +99,7 @@ const AssistantSubmissions = () => {
                                         <td className="p-5 text-xs font-bold text-slate-400 uppercase">{s.CourseName}</td>
                                         <td className="p-5">
                                             {s.FilePath ? (
-                                                <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/uploads/submissions/${s.FilePath}`} target="_blank" rel="noreferrer"
+                                                <a href={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${s.FilePath}`} target="_blank" rel="noreferrer"
                                                     className="flex items-center gap-1 text-blue-500 text-xs font-bold hover:underline">
                                                     <Download size={14} /> View
                                                 </a>
@@ -109,10 +109,18 @@ const AssistantSubmissions = () => {
                                             {s.Score !== null ? (
                                                 <span className="px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-500 text-sm font-black">{s.Score}</span>
                                             ) : (
-                                                <span className="px-3 py-1 rounded-lg bg-amber-500/10 text-amber-500 text-[10px] font-black uppercase">Pending</span>
+                                                <span className="px-3 py-1 rounded-lg bg-amber-500/10 text-amber-500 text-[10px] font-black uppercase tracking-widest border border-amber-500/20 shadow-inner">Pending</span>
                                             )}
                                         </td>
                                         <td className="p-5 text-xs font-bold text-slate-500">{s.CorrectedByName || '—'}</td>
+                                        <td className="p-5 text-right">
+                                            <button 
+                                                onClick={() => setGradeForm({ submissionID: s.SubmissionID.toString(), score: s.Score?.toString() || '' })}
+                                                className="px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200 dark:border-white/10 opacity-0 group-hover:opacity-100"
+                                            >
+                                                {s.Score !== null ? 'Modify Grade' : 'Grade Now'}
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

@@ -1,17 +1,18 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
-import { GoogleOAuthProvider } from '@react-oauth/google';
+
 
 // Hooks & Context
 import { useTheme } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
+import { SocketProvider } from './context/SocketContext';
 
 // Components
 import Sidebar from './components/Sidebar';
 import PageWrapper from './components/PageWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
-import QuickSearch from './components/QuickSearch';
+
 import Breadcrumb from './components/Breadcrumb';
 
 // Common Pages
@@ -34,6 +35,7 @@ import AssistantDashboard from './pages/assistant/AssistantDashboard';
 import AssistantAssignments from './pages/assistant/AssistantAssignments';
 import AssistantSubmissions from './pages/assistant/AssistantSubmissions';
 import AssistantCourses from './pages/assistant/AssistantCourses';
+import AssistantCourseDetails from './pages/assistant/AssistantCourseDetails';
 
 // Instructor Pages
 import InstructorDashboard from './pages/instructor/InstructorDashboard';
@@ -81,6 +83,65 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return children;
 };
 
+const SocketWrapper = ({ toggleTheme, isDarkMode, location }) => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return (
+        <SocketProvider userId={user.UserID}>
+            <div className="flex h-screen overflow-hidden relative">
+                <Sidebar isDark={isDarkMode} toggleTheme={toggleTheme} />
+                <main className="flex-1 relative overflow-y-auto custom-scrollbar bg-slate-50/50 dark:bg-transparent">
+                    <div className="p-4 md:p-10 max-w-[1600px] mx-auto min-h-full pb-24">
+                        <Breadcrumb />
+                        <AnimatePresence mode="wait">
+                            <Routes location={location} key={location.pathname}>
+                                {/* Student Routes */}
+                                <Route path="/student" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Dashboard /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/courses" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><MyCourses /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/course/:id" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><CourseDetails /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/grades" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Grades /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/assignments" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Assignments /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/calendar" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Calendar /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/discussions/:courseId" element={<ProtectedRoute allowedRoles={['Student', 'Instructor', 'Assistant']}><PageWrapper><Discussions /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/analytics" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Analytics /></PageWrapper></ProtectedRoute>} />
+
+                                {/* Assistant Routes */}
+                                <Route path="/assistant" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantDashboard /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/assistant/assignments" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantAssignments /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/assistant/submissions" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantSubmissions /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/assistant/courses" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantCourses /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/assistant/courses/:id" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantCourseDetails /></PageWrapper></ProtectedRoute>} />
+
+                                {/* Instructor Routes */}
+                                <Route path="/instructor" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><InstructorDashboard /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/instructor/students" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><ManageStudents /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/instructor/assistants" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><ManageAssistants /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/instructor/courses" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><ManageCourses /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/instructor/courses/:id" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><InstructorCourseDetails /></PageWrapper></ProtectedRoute>} />
+                                <Route path="/instructor/submissions" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><InstructorSubmissions /></PageWrapper></ProtectedRoute>} />
+
+                                {/* Common */}
+                                <Route path="/profile" element={<PageWrapper><Profile /></PageWrapper>} />
+                                
+                                {/* Default Dashboard Redirect when logged in */}
+                                <Route path="/dashboard" element={<DashboardRedirect />} />
+                                
+                                {/* Redirect unmatched nested paths back to specific role dashboard */}
+                                <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                            </Routes>
+                        </AnimatePresence>
+                    </div>
+
+                    {/* Background Aurora Effects */}
+                    <div className="fixed inset-0 pointer-events-none z-[-1] opacity-20 transition-opacity duration-1000">
+                        <div className="absolute top-[-10%] left-[-5%] w-[50%] h-[50%] bg-blue-600/10 blur-[130px] rounded-full animate-pulse"></div>
+                        <div className="absolute bottom-[-10%] right-[-5%] w-[45%] h-[45%] bg-indigo-500/10 blur-[130px] rounded-full"></div>
+                    </div>
+                </main>
+            </div>
+        </SocketProvider>
+    );
+};
+
 const AppContent = () => {
     const { isDarkMode, toggleTheme } = useTheme();
     const location = useLocation();
@@ -103,58 +164,7 @@ const AppContent = () => {
                         path="/*" 
                         element={
                             <ProtectedRoute>
-                                <div className="flex h-screen overflow-hidden relative">
-                                    <QuickSearch />
-                                    <Sidebar isDark={isDarkMode} toggleTheme={toggleTheme} />
-
-                                    <main className="flex-1 relative overflow-y-auto custom-scrollbar bg-slate-50/50 dark:bg-transparent">
-                                        <div className="p-4 md:p-10 max-w-[1600px] mx-auto min-h-full pb-24">
-                                            <Breadcrumb />
-                                            <AnimatePresence mode="wait">
-                                                <Routes location={location} key={location.pathname}>
-                                                    {/* Student Routes */}
-                                                    <Route path="/student" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Dashboard /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/courses" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><MyCourses /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/course/:id" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><CourseDetails /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/grades" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Grades /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/assignments" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Assignments /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/calendar" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Calendar /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/discussions/:courseId" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Discussions /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/analytics" element={<ProtectedRoute allowedRoles={['Student']}><PageWrapper><Analytics /></PageWrapper></ProtectedRoute>} />
-
-                                                    {/* Assistant Routes */}
-                                                    <Route path="/assistant" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantDashboard /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/assistant/assignments" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantAssignments /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/assistant/submissions" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantSubmissions /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/assistant/courses" element={<ProtectedRoute allowedRoles={['Assistant']}><PageWrapper><AssistantCourses /></PageWrapper></ProtectedRoute>} />
-
-                                                    {/* Instructor Routes */}
-                                                    <Route path="/instructor" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><InstructorDashboard /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/instructor/students" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><ManageStudents /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/instructor/assistants" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><ManageAssistants /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/instructor/courses" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><ManageCourses /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/instructor/courses/:id" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><InstructorCourseDetails /></PageWrapper></ProtectedRoute>} />
-                                                    <Route path="/instructor/submissions" element={<ProtectedRoute allowedRoles={['Instructor']}><PageWrapper><InstructorSubmissions /></PageWrapper></ProtectedRoute>} />
-
-                                                    {/* Common */}
-                                                    <Route path="/profile" element={<PageWrapper><Profile /></PageWrapper>} />
-                                                    
-                                                    {/* Default Dashboard Redirect when logged in */}
-                                                    <Route path="/dashboard" element={<DashboardRedirect />} />
-                                                    
-                                                    {/* Redirect unmatched nested paths back to specific role dashboard */}
-                                                    <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                                                </Routes>
-                                            </AnimatePresence>
-                                        </div>
-
-                                        {/* Background Aurora Effects */}
-                                        <div className="fixed inset-0 pointer-events-none z-[-1] opacity-20 transition-opacity duration-1000">
-                                            <div className="absolute top-[-10%] left-[-5%] w-[50%] h-[50%] bg-blue-600/10 blur-[130px] rounded-full animate-pulse"></div>
-                                            <div className="absolute bottom-[-10%] right-[-5%] w-[45%] h-[45%] bg-indigo-500/10 blur-[130px] rounded-full"></div>
-                                        </div>
-                                    </main>
-                                </div>
+                                <SocketWrapper toggleTheme={toggleTheme} isDarkMode={isDarkMode} location={location} />
                             </ProtectedRoute>
                         } 
                     />
@@ -167,13 +177,11 @@ const AppContent = () => {
 const App = () => {
     return (
         <ErrorBoundary>
-            <GoogleOAuthProvider clientId="244325775957-hkdgd0751nkju5t343ttiin7kff89m6c.apps.googleusercontent.com">
-                <Router>
-                    <ToastProvider>
-                        <AppContent />
-                    </ToastProvider>
-                </Router>
-            </GoogleOAuthProvider>
+            <Router>
+                <ToastProvider>
+                    <AppContent />
+                </ToastProvider>
+            </Router>
         </ErrorBoundary>
     );
 };

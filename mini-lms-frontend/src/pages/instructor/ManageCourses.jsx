@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { BookOpen, Plus, Layers, FileText, Video, Calendar, AlertCircle, CheckCircle2, Eye } from 'lucide-react';
-import { apiGet, apiPost } from '../../api';
+import { BookOpen, Plus, Layers, FileText, Video, Calendar, AlertCircle, CheckCircle2, Eye, Trash2 } from 'lucide-react';
+import { apiGet, apiPost, apiDelete } from '../../services/api';
 
 const ManageCourses = () => {
     const [courses, setCourses] = useState([]);
-    const [courseForm, setCourseForm] = useState({ courseName: '', maxMarks: '100' });
-    const [weekForm, setWeekForm] = useState({ courseID: '', weekNumber: '', title: '' });
-    const [lectureForm, setLectureForm] = useState({ courseID: '', title: '', date: '', startTime: '', endTime: '' });
-    const [assignmentForm, setAssignmentForm] = useState({ courseID: '', title: '', maxScore: '', deadline: '' });
-    const [materialForm, setMaterialForm] = useState({ weekID: '', title: '' });
+    const [courseForm, setCourseForm] = useState({ name: '', maxMarks: '100' });
+    const [weekForm, setWeekForm] = useState({ courseId: '', weekNumber: '', title: '' });
+    const [lectureForm, setLectureForm] = useState({ courseId: '', title: '', date: '', startTime: '', endTime: '' });
+    const [assignmentForm, setAssignmentForm] = useState({ courseId: '', title: '', maxScore: '', deadline: '' });
+    const [materialForm, setMaterialForm] = useState({ weekId: '', title: '', file: null });
     const [msg, setMsg] = useState({ text: '', type: '' });
 
     useEffect(() => { loadCourses(); }, []);
@@ -27,9 +27,20 @@ const ManageCourses = () => {
         try {
             await apiPost('/instructor/courses', courseForm);
             setMsg({ text: 'Course created successfully!', type: 'success' });
-            setCourseForm({ courseName: '', maxMarks: '100' });
+            setCourseForm({ name: '', maxMarks: '100' });
             loadCourses();
         } catch (err) { setMsg({ text: err.message, type: 'error' }); }
+    };
+
+    const handleDeleteCourse = async (courseId) => {
+        if (!window.confirm("Are you sure you want to delete this course? This action cannot be undone.")) return;
+        try {
+            await apiDelete(`/instructor/courses/${courseId}`);
+            setMsg({ text: 'Course deleted successfully!', type: 'success' });
+            loadCourses();
+        } catch (err) {
+            setMsg({ text: err.response?.data?.message || err.message, type: 'error' });
+        }
     };
 
     const handleAddWeek = async (e) => {
@@ -37,16 +48,23 @@ const ManageCourses = () => {
         try {
             await apiPost('/instructor/weeks', weekForm);
             setMsg({ text: 'Week added successfully!', type: 'success' });
-            setWeekForm({ courseID: '', weekNumber: '', title: '' });
+            setWeekForm({ courseId: '', weekNumber: '', title: '' });
         } catch (err) { setMsg({ text: err.message, type: 'error' }); }
     };
 
     const handleAddMaterial = async (e) => {
         e.preventDefault();
         try {
-            await apiPost('/instructor/materials', materialForm);
+            const formData = new FormData();
+            formData.append('weekId', materialForm.weekId);
+            formData.append('title', materialForm.title);
+            if (materialForm.file) {
+                formData.append('file', materialForm.file);
+            }
+            await apiPost('/instructor/materials', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
             setMsg({ text: 'Material added successfully!', type: 'success' });
-            setMaterialForm({ weekID: '', title: '' });
+            setMaterialForm({ weekId: '', title: '', file: null });
+            document.getElementById('materialFileInput').value = '';
         } catch (err) { setMsg({ text: err.message, type: 'error' }); }
     };
 
@@ -55,7 +73,7 @@ const ManageCourses = () => {
         try {
             await apiPost('/instructor/lectures', lectureForm);
             setMsg({ text: 'Lecture added successfully!', type: 'success' });
-            setLectureForm({ courseID: '', title: '', date: '', startTime: '', endTime: '' });
+            setLectureForm({ courseId: '', title: '', date: '', startTime: '', endTime: '' });
         } catch (err) { setMsg({ text: err.message, type: 'error' }); }
     };
 
@@ -64,7 +82,7 @@ const ManageCourses = () => {
         try {
             await apiPost('/instructor/assignments', assignmentForm);
             setMsg({ text: 'Assignment created successfully!', type: 'success' });
-            setAssignmentForm({ courseID: '', title: '', maxScore: '', deadline: '' });
+            setAssignmentForm({ courseId: '', title: '', maxScore: '', deadline: '' });
         } catch (err) { setMsg({ text: err.message, type: 'error' }); }
     };
 
@@ -107,7 +125,7 @@ const ManageCourses = () => {
                         <form onSubmit={handleCreateCourse} className="space-y-5">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Course Name</label>
-                                <input type="text" placeholder="e.g. Advanced Calculus" required value={courseForm.courseName} onChange={e => setCourseForm({...courseForm, courseName: e.target.value})} className={inputClass} />
+                                <input type="text" placeholder="e.g. Advanced Calculus" required value={courseForm.name} onChange={e => setCourseForm({...courseForm, name: e.target.value})} className={inputClass} />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Credit Mass (Max Marks)</label>
@@ -127,7 +145,7 @@ const ManageCourses = () => {
                         <form onSubmit={handleAddWeek} className="space-y-5">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Target Module</label>
-                                <select value={weekForm.courseID} onChange={e => setWeekForm({...weekForm, courseID: e.target.value})} required className={inputClass + " appearance-none cursor-pointer"}>
+                                <select value={weekForm.courseId} onChange={e => setWeekForm({...weekForm, courseId: e.target.value})} required className={inputClass + " appearance-none cursor-pointer"}>
                                     <option value="">Select Course</option>
                                     {courses.map(c => <option key={c.CourseID} value={c.CourseID}>{c.CourseName}</option>)}
                                 </select>
@@ -156,11 +174,15 @@ const ManageCourses = () => {
                         <form onSubmit={handleAddMaterial} className="space-y-5">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Internal Week ID</label>
-                                <input type="number" placeholder="Check Week Roster" required value={materialForm.weekID} onChange={e => setMaterialForm({...materialForm, weekID: e.target.value})} className={inputClass} />
+                                <input type="number" placeholder="Check Week Roster" required value={materialForm.weekId || materialForm.weekID || ''} onChange={e => setMaterialForm({...materialForm, weekId: e.target.value})} className={inputClass} />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Resource Label</label>
                                 <input type="text" placeholder="Lecture 01 Notes" required value={materialForm.title} onChange={e => setMaterialForm({...materialForm, title: e.target.value})} className={inputClass} />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Upload File (Optional)</label>
+                                <input id="materialFileInput" type="file" onChange={e => setMaterialForm({...materialForm, file: e.target.files[0]})} className={inputClass + " p-3 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-blue-500/10 file:text-blue-500 hover:file:bg-blue-500/20"} />
                             </div>
                             <button type="submit" className="w-full py-5 bg-gradient-to-r from-blue-500 to-sky-500 text-white font-black rounded-2xl shadow-xl transition-all text-[11px] tracking-[0.3em] uppercase mt-4">Inject Material</button>
                         </form>
@@ -176,7 +198,7 @@ const ManageCourses = () => {
                         <form onSubmit={handleAddLecture} className="space-y-5">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Module Selection</label>
-                                <select value={lectureForm.courseID} onChange={e => setLectureForm({...lectureForm, courseID: e.target.value})} required className={inputClass + " appearance-none cursor-pointer"}>
+                                <select value={lectureForm.courseId} onChange={e => setLectureForm({...lectureForm, courseId: e.target.value})} required className={inputClass + " appearance-none cursor-pointer"}>
                                     <option value="">Select Course</option>
                                     {courses.map(c => <option key={c.CourseID} value={c.CourseID}>{c.CourseName}</option>)}
                                 </select>
@@ -209,7 +231,7 @@ const ManageCourses = () => {
                         <form onSubmit={handleCreateAssignment} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Target Course</label>
-                                <select value={assignmentForm.courseID} onChange={e => setAssignmentForm({...assignmentForm, courseID: e.target.value})} required className={inputClass + " appearance-none cursor-pointer"}>
+                                <select value={assignmentForm.courseId} onChange={e => setAssignmentForm({...assignmentForm, courseId: e.target.value})} required className={inputClass + " appearance-none cursor-pointer"}>
                                     <option value="">Select Course</option>
                                     {courses.map(c => <option key={c.CourseID} value={c.CourseID}>{c.CourseName}</option>)}
                                 </select>
@@ -256,8 +278,14 @@ const ManageCourses = () => {
                                         to={`/instructor/courses/${c.CourseID}`}
                                         className="flex items-center gap-2 px-5 py-2.5 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 border border-cyan-500/20 hover:border-cyan-500"
                                     >
-                                        <Eye size={14} /> View Course
+                                        <Eye size={14} /> View
                                     </Link>
+                                    <button
+                                        onClick={() => handleDeleteCourse(c.CourseID)}
+                                        className="flex items-center gap-2 px-5 py-2.5 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95 border border-red-500/20 hover:border-red-500"
+                                    >
+                                        <Trash2 size={14} /> Delete
+                                    </button>
                                 </div>
                             </div>
                         ))}

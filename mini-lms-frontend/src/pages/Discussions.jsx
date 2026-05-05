@@ -35,12 +35,20 @@ const Discussions = () => {
 
     useEffect(() => { if (courseId) fetchPosts(); }, [courseId]);
 
+    const userString = localStorage.getItem('user');
+    const user = userString ? JSON.parse(userString) : {};
+    const rolePath = user.UserType ? user.UserType.toLowerCase() : 'student';
+
     const fetchPosts = async () => {
         try {
-            const res = await fetch(`${API_URL}/api/student/discussions/${courseId}`, { headers });
+            const res = await fetch(`${API_URL}/api/${rolePath}/discussions/${courseId}`, { headers });
+            if (!res.ok) throw new Error('Failed to fetch posts');
             const data = await res.json();
-            setPosts(data);
-        } catch (err) { console.error(err); }
+            setPosts(Array.isArray(data) ? data : []);
+        } catch (err) { 
+            console.error(err);
+            setPosts([]);
+        }
         finally { setLoading(false); }
     };
 
@@ -49,10 +57,11 @@ const Discussions = () => {
         if (!newTitle.trim() || !newContent.trim()) return;
         setPosting(true);
         try {
-            await fetch(`${API_URL}/api/student/discussions`, {
+            const res = await fetch(`${API_URL}/api/${rolePath}/discussions`, {
                 method: 'POST', headers,
                 body: JSON.stringify({ courseId: parseInt(courseId), title: newTitle, content: newContent })
             });
+            if (!res.ok) throw new Error('Failed to create post');
             setNewTitle(''); setNewContent(''); setShowNewPost(false);
             fetchPosts();
         } catch (err) { console.error(err); }
@@ -63,10 +72,14 @@ const Discussions = () => {
         setSelectedPost(post);
         setLoadingReplies(true);
         try {
-            const res = await fetch(`${API_URL}/api/student/discussions/replies/${post.PostID}`, { headers });
+            const res = await fetch(`${API_URL}/api/${rolePath}/discussions/replies/${post.PostID}`, { headers });
+            if (!res.ok) throw new Error('Failed to fetch replies');
             const data = await res.json();
-            setReplies(data);
-        } catch (err) { console.error(err); }
+            setReplies(Array.isArray(data) ? data : []);
+        } catch (err) { 
+            console.error(err);
+            setReplies([]);
+        }
         finally { setLoadingReplies(false); }
     };
 
@@ -75,10 +88,11 @@ const Discussions = () => {
         if (!replyContent.trim()) return;
         setReplying(true);
         try {
-            await fetch(`${API_URL}/api/student/discussions/reply`, {
+            const res = await fetch(`${API_URL}/api/${rolePath}/discussions/reply`, {
                 method: 'POST', headers,
                 body: JSON.stringify({ postId: selectedPost.PostID, content: replyContent })
             });
+            if (!res.ok) throw new Error('Failed to reply');
             setReplyContent('');
             openPost(selectedPost);
         } catch (err) { console.error(err); }

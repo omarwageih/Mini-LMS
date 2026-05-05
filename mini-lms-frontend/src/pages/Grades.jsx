@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Award, BookOpen, Download, FileSpreadsheet, FileText } from 'lucide-react';
-import { apiGet } from '../api';
+import { apiGet } from '../services/api';
 import { SkeletonTable } from '../components/Skeletons';
 import EmptyState from '../components/EmptyState';
 import SearchFilter from '../components/SearchFilter';

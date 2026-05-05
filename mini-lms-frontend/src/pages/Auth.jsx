@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mail, Lock, User, Phone, ShieldCheck, LogIn, ShieldPlus, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
-import { GoogleLogin } from '@react-oauth/google';
 import ThemeToggle from '../components/ThemeToggle';
+import api from '../services/api';
+import useAuthStore from '../stores/authStore';
 
 const Auth = () => {
     const location = useLocation();
@@ -17,6 +18,7 @@ const Auth = () => {
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const loginStore = useAuthStore(state => state.login);
 
     React.useEffect(() => {
         const user = localStorage.getItem('user');
@@ -31,37 +33,20 @@ const Auth = () => {
         setSuccess('');
         setLoading(true);
 
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-        const endpoint = isLogin ? `${API_URL}/api/auth/login` : `${API_URL}/api/auth/register`;
+        const endpoint = isLogin ? '/auth/login' : '/auth/register';
         const body = isLogin
             ? { email, password }
             : { fullName, email, password, userType, phone };
 
         try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                setError(data.message || "Operation failed");
-                return;
-            }
+            const response = await api.post(endpoint, body);
+            const data = response.data;
 
             if (isLogin) {
                 // Handle Login Success
-                localStorage.setItem('token', data.token);
-                if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+                loginStore(data.token, data.user, data.refreshToken);
 
-                // Use the user object returned from API for full profile details
-                const user = data.user;
-                localStorage.setItem('user', JSON.stringify(user));
-
-                // Navigate based on role (standard behavior)
-                // We'll just go to the default dashboard which redirects or shows role content
+                // Navigate based on role
                 navigate('/dashboard');
             } else {
                 // Handle Register Success
@@ -72,35 +57,7 @@ const Auth = () => {
                 }, 2000);
             }
         } catch (err) {
-            setError("Server connection error. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleGoogleSuccess = async (credentialResponse) => {
-        setError('');
-        setLoading(true);
-        try {
-            const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-            const response = await fetch(`${API_URL}/api/auth/google-login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ credential: credentialResponse.credential })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                setError(data.message || 'Google login failed');
-                return;
-            }
-
-            localStorage.setItem('token', data.token);
-            localStorage.setItem('user', JSON.stringify(data.user));
-            navigate('/dashboard');
-        } catch (err) {
-            setError('Google login failed. Please try again.');
+            setError(err.response?.data?.message || "Server connection error. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -198,28 +155,6 @@ const Auth = () => {
                             {!isLogin && (
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ type: "spring", stiffness: 300, damping: 30 }} className="space-y-6">
 
-                                    <div className="space-y-2.5 text-left">
-                                        <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 ml-2 italic">Institutional Role</label>
-                                        <div className="relative flex p-1.5 bg-slate-50 dark:bg-black/20 rounded-2xl border border-slate-200 dark:border-white/5 overflow-hidden">
-                                            {['Student', 'Assistant'].map((type) => (
-                                                <button
-                                                    key={type}
-                                                    type="button"
-                                                    onClick={() => setUserType(type)}
-                                                    className={`relative z-10 flex-1 py-3 rounded-xl text-[9px] font-black uppercase tracking-tighter transition-all duration-300 ${userType === type ? 'text-white' : 'text-slate-400 dark:text-slate-600'}`}
-                                                >
-                                                    {userType === type && (
-                                                        <motion.div
-                                                            layoutId="roleSelector"
-                                                            className="absolute inset-0 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20 z-[-1]"
-                                                        />
-                                                    )}
-                                                    {type}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
                                     <ModernInput icon={<User size={18} />} label="Full Name" placeholder="Enter Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
                                     <ModernInput icon={<Phone size={18} />} label="Phone Number" placeholder="01XXXXXXXXX" value={phone} onChange={(e) => setPhone(e.target.value)} />
                                 </motion.div>
@@ -247,25 +182,6 @@ const Auth = () => {
                         </motion.button>
                     </form>
 
-                    {/* Google Sign-In Divider */}
-                    <div className="mt-8">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="flex-1 h-px bg-slate-200 dark:bg-white/10"></div>
-                            <span className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-600 italic">or continue with</span>
-                            <div className="flex-1 h-px bg-slate-200 dark:bg-white/10"></div>
-                        </div>
-                        <div className="flex justify-center">
-                            <GoogleLogin
-                                onSuccess={handleGoogleSuccess}
-                                onError={() => setError('Google login failed')}
-                                shape="pill"
-                                size="large"
-                                width="380"
-                                text={isLogin ? "signin_with" : "signup_with"}
-                                theme="outline"
-                            />
-                        </div>
-                    </div>
 
                     <div className="mt-10 pt-6 border-t border-slate-100 dark:border-white/5 text-center">
                         <p className="text-[10px] text-slate-400 dark:text-slate-600 font-black uppercase tracking-[0.2em] italic">

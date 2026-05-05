@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { BookOpen, Monitor, Clock, Users, ChevronRight, Sparkles } from 'lucide-react';
-import { apiGet } from '../../api';
+import { apiGet } from '../../services/api';
 
 const AssistantCourses = () => {
     const [courses, setCourses] = useState([]);
@@ -65,7 +65,7 @@ const AssistantCourses = () => {
                     ) : courses.map((course, index) => {
                         const colorClass = colors[index % colors.length];
                         return (
-                            <Link to={`/assistant/submissions?courseId=${course.CourseID}`} key={course.CourseID} className="block group">
+                            <Link to={`/assistant/courses/${course.CourseID}`} key={course.CourseID} className="block group">
                                 <motion.div
                                     initial={{ opacity: 0, y: 30 }}
                                     animate={{ opacity: 1, y: 0 }}

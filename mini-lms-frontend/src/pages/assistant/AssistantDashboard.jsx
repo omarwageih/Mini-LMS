@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { BookOpen, ClipboardList, Sparkles, ArrowRight, GraduationCap, Activity } from 'lucide-react';
-import { apiGet } from '../../api';
+import { apiGet } from '../../services/api';
 
 const AssistantDashboard = () => {
     const [courses, setCourses] = useState([]);

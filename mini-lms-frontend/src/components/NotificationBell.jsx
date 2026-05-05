@@ -3,8 +3,10 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Check, CheckCheck, X, Award, Megaphone, ClipboardList, MessageSquare, Info } from 'lucide-react';
+import { apiGet, apiPut } from '../services/api';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+import { useSocket } from '../context/SocketContext';
+import { useToast } from '../context/ToastContext';
 
 const typeIcons = {
     grade: <Award size={16} className="text-purple-500" />,
@@ -23,12 +25,27 @@ const NotificationBell = () => {
     const bellRef = useRef(null);
     const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
     const navigate = useNavigate();
+    const socket = useSocket();
+    const { showToast } = useToast();
 
     useEffect(() => {
         fetchUnreadCount();
-        const interval = setInterval(fetchUnreadCount, 30000); // poll every 30s
+        const interval = setInterval(fetchUnreadCount, 60000); // Poll less frequently since we have sockets
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleNewNotification = (notification) => {
+            setNotifications(prev => [notification, ...prev]);
+            setUnreadCount(prev => prev + 1);
+            showToast(`New Notification: ${notification.Title}`, 'info');
+        };
+
+        socket.on('notification', handleNewNotification);
+        return () => socket.off('notification', handleNewNotification);
+    }, [socket]);
 
     useEffect(() => {
         const handleClickOutside = (e) => {
@@ -44,33 +61,24 @@ const NotificationBell = () => {
     }, []);
 
     const fetchUnreadCount = async () => {
-        const t = localStorage.getItem('token');
-        if (!t) return;
         try {
-            const res = await fetch(`${API_URL}/api/notifications/unread-count`, {
-                headers: { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setUnreadCount(data.count);
-            }
-            // Silently ignore 401/403 — token refresh handled elsewhere
-        } catch (err) { /* silent — background poll */ }
+            const data = await apiGet('/notifications/unread-count');
+            setUnreadCount(data.count);
+        } catch (err) {
+            // Silently ignore — likely background polling or auth error
+        }
     };
 
     const fetchNotifications = async () => {
-        const t = localStorage.getItem('token');
-        if (!t) return;
-        const h = { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' };
         setLoading(true);
         try {
-            const res = await fetch(`${API_URL}/api/notifications`, { headers: h });
-            if (res.ok) {
-                const data = await res.json();
-                setNotifications(data);
-            }
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
+            const data = await apiGet('/notifications');
+            setNotifications(data);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleOpen = () => {
@@ -79,29 +87,23 @@ const NotificationBell = () => {
     };
 
     const handleMarkRead = async (id) => {
-        const t = localStorage.getItem('token');
-        if (!t) return;
         try {
-            await fetch(`${API_URL}/api/notifications/read/${id}`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' }
-            });
+            await apiPut(`/notifications/read/${id}`);
             setNotifications(prev => prev.map(n => n.NotificationID === id ? { ...n, IsRead: true } : n));
             setUnreadCount(prev => Math.max(0, prev - 1));
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     const handleMarkAllRead = async () => {
-        const t = localStorage.getItem('token');
-        if (!t) return;
         try {
-            await fetch(`${API_URL}/api/notifications/read-all`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' }
-            });
+            await apiPut('/notifications/read-all');
             setNotifications(prev => prev.map(n => ({ ...n, IsRead: true })));
             setUnreadCount(0);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     const handleClick = (notification) => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ClipboardList, Clock, CheckCircle2, Upload, FileText } from 'lucide-react';
-import { apiGet, apiPost } from '../api';
+import { studentAPI } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { SkeletonCard } from '../components/Skeletons';
 import EmptyState from '../components/EmptyState';
@@ -24,8 +24,8 @@ const Assignments = () => {
 
     const loadAssignments = async () => {
         try {
-            const data = await apiGet('/student/assignments');
-            setAssignments(data);
+            const response = await studentAPI.getAssignments();
+            setAssignments(response.data);
         } catch (err) {
             showToast('Failed to load assignments', 'error');
         } finally {
@@ -45,7 +45,7 @@ const Assignments = () => {
             const formData = new FormData();
             formData.append('assignmentID', assignmentID);
             formData.append('file', file);
-            await apiPost('/student/assignments/submit', formData);
+            await studentAPI.submitAssignment(formData);
             showToast('Assignment submitted successfully! 🎉', 'success');
             loadAssignments();
         } catch (err) {

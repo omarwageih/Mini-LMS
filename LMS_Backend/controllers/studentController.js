@@ -14,7 +14,7 @@ const getDashboard = async (req, res) => {
         const userResult = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
-                SELECT u.FullName, u.Email, s.GPA, s.Academic_Year, s.Major
+                SELECT u.FullName, u.Email, s.GPA, s.Academic_Year, s.Major, s.StudentCode
                 FROM Users u
                 INNER JOIN Students s ON u.UserID = s.UserID
                 WHERE u.UserID = @userID
@@ -46,6 +46,7 @@ const getDashboard = async (req, res) => {
             fullName: student.FullName,
             email: student.Email,
             gpa: student.GPA,
+            studentCode: student.StudentCode,
             academicYear: student.Academic_Year,
             major: student.Major,
             courseCount: coursesResult.recordset[0].courseCount,
@@ -128,25 +129,34 @@ const getCourseContent = async (req, res) => {
             const materialsResult = await pool.request()
                 .input('weekID', sql.Int, week.WeekID)
                 .query(`
-                    SELECT Material_ID AS MaterialID, Week_ID AS WeekID, Title, Created_By
+                    SELECT Material_ID AS MaterialID, Week_ID AS WeekID, Title, Type, FileURL, Created_By
                     FROM Material 
                     WHERE Week_ID = @weekID
+                `);
+
+            const weekLecturesResult = await pool.request()
+                .input('weekID', sql.Int, week.WeekID)
+                .query(`
+                    SELECT LectureID, Title, Date, Start_Time, End_Time, Week_ID
+                    FROM Lecture 
+                    WHERE Week_ID = @weekID 
+                    ORDER BY Date
                 `);
 
             weeks.push({
                 ...week,
                 materials: materialsResult.recordset,
-                lectures: [] // Lectures link to Course, not Week
+                lectures: weekLecturesResult.recordset
             });
         }
 
-        // Get lectures for this course (linked directly to Course, not Week)
+        // Get unassigned lectures for this course
         const lecturesResult = await pool.request()
             .input('courseID', sql.Int, courseId)
             .query(`
-                SELECT LectureID, Title, Date, Start_Time, End_Time
+                SELECT LectureID, Title, Date, Start_Time, End_Time, Week_ID
                 FROM Lecture 
-                WHERE CourseID = @courseID 
+                WHERE CourseID = @courseID AND Week_ID IS NULL
                 ORDER BY Date
             `);
 
@@ -207,20 +217,35 @@ const getAssignments = async (req, res) => {
 // =============================================
 const submitAssignment = async (req, res) => {
     try {
-        const { assignmentID } = req.body;
+        const { assignmentID, submissionContent } = req.body;
         const userID = req.user.id;
 
         if (!assignmentID) {
             return res.status(400).json({ message: "assignmentID is required." });
         }
 
-        if (!req.file) {
-            return res.status(400).json({ message: "File is required (PDF or JPG)." });
+        if (!req.file && !submissionContent) {
+            return res.status(400).json({ message: "You must provide either a file or a text submission." });
         }
 
         const pool = await getPool();
 
-        // Check if already submitted (UNIQUE constraint: AssignmentID + StudentID)
+        // 1. Check if enrolled in the course this assignment belongs to
+        const enrollmentCheck = await pool.request()
+            .input('assignmentID', sql.Int, assignmentID)
+            .input('userID', sql.Int, userID)
+            .query(`
+                SELECT 1 
+                FROM Assignment a
+                INNER JOIN Enrollment e ON a.CourseID = e.CourseID
+                WHERE a.AssignmentID = @assignmentID AND e.StudentID = @userID
+            `);
+
+        if (enrollmentCheck.recordset.length === 0) {
+            return res.status(403).json({ message: "You are not enrolled in the course for this assignment." });
+        }
+
+        // 2. Check if already submitted (UNIQUE constraint: AssignmentID + StudentID)
         const existing = await pool.request()
             .input('assignmentID', sql.Int, assignmentID)
             .input('userID', sql.Int, userID)
@@ -230,18 +255,19 @@ const submitAssignment = async (req, res) => {
             return res.status(400).json({ message: "You already submitted this assignment." });
         }
 
-        const filePath = req.file.filename;
+        const filePath = req.file ? `/uploads/submissions/${req.file.filename}` : null;
 
         await pool.request()
             .input('assignmentID', sql.Int, assignmentID)
             .input('userID', sql.Int, userID)
             .input('filePath', sql.VarChar, filePath)
+            .input('submissionContent', sql.NVarChar, submissionContent || null)
             .query(`
-                INSERT INTO Submission (AssignmentID, StudentID, FilePath)
-                VALUES (@assignmentID, @userID, @filePath)
+                INSERT INTO Submission (AssignmentID, StudentID, FilePath, SubmissionContent)
+                VALUES (@assignmentID, @userID, @filePath, @submissionContent)
             `);
 
-        res.json({ message: "Assignment submitted successfully", filePath });
+        res.json({ message: "Assignment submitted successfully", filePath, submissionContent });
     } catch (err) {
         console.error("Submit Assignment Error:", err);
         res.status(500).json({ message: "An internal server error occurred while submitting assignment." });
@@ -335,13 +361,24 @@ const getCalendarEvents = async (req, res) => {
         const result = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
-                SELECT a.AssignmentID, a.Title, a.Deadline, c.Name AS CourseName, c.CourseID,
-                    CASE WHEN s.SubID IS NOT NULL THEN 1 ELSE 0 END AS Submitted
+                SELECT a.AssignmentID AS ID, a.Title, a.Deadline, c.Name AS CourseName, c.CourseID,
+                    CASE WHEN s.SubID IS NOT NULL THEN 1 ELSE 0 END AS Submitted,
+                    'Assignment' AS Type
                 FROM Assignment a
                 INNER JOIN Course c ON a.CourseID = c.CourseID
                 INNER JOIN Enrollment e ON e.CourseID = c.CourseID AND e.StudentID = @userID
                 LEFT JOIN Submission s ON s.AssignmentID = a.AssignmentID AND s.StudentID = @userID
-                ORDER BY a.Deadline ASC
+                
+                UNION ALL
+                
+                SELECT l.LectureID AS ID, l.Title, l.Date AS Deadline, c.Name AS CourseName, c.CourseID,
+                    1 AS Submitted, -- Lectures don't have a "submitted" state, default to 1 so they don't show as pending
+                    'Lecture' AS Type
+                FROM Lecture l
+                INNER JOIN Course c ON l.CourseID = c.CourseID
+                INNER JOIN Enrollment e ON e.CourseID = c.CourseID AND e.StudentID = @userID
+                
+                ORDER BY Deadline ASC
             `);
         res.json(result.recordset);
     } catch (err) {
@@ -415,14 +452,125 @@ const createDiscussionReply = async (req, res) => {
         const { postId, content } = req.body;
         const userID = req.user.id;
         const pool = await getPool();
+        
+        // Insert reply
         await pool.request()
             .input('PostID', sql.Int, postId)
             .input('UserID', sql.Int, userID)
             .input('Content', sql.NVarChar, content)
             .query(`INSERT INTO DiscussionReplies (PostID, UserID, Content) VALUES (@PostID, @UserID, @Content)`);
+
+        // Notify post owner
+        try {
+            const postResult = await pool.request()
+                .input('pId', sql.Int, postId)
+                .query('SELECT UserID, Title FROM DiscussionPosts WHERE PostID = @pId');
+            
+            const post = postResult.recordset[0];
+            if (post && post.UserID !== userID) {
+                const { createNotification } = require('../utils/helpers');
+                const userResult = await pool.request()
+                    .input('uId', sql.Int, userID)
+                    .query('SELECT FullName FROM Users WHERE UserID = @uId');
+                const replierName = userResult.recordset[0]?.FullName || 'Someone';
+
+                await createNotification(
+                    post.UserID,
+                    'discussion',
+                    `New reply to: ${post.Title}`,
+                    `${replierName} replied to your post.`,
+                    `/discussions/post/${postId}`
+                );
+            }
+        } catch (notifErr) {
+            console.error("Discussion reply notification failed:", notifErr.message);
+        }
+
         res.json({ message: "Reply posted successfully" });
     } catch (err) {
         console.error("Create Discussion Reply Error:", err);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const updateProfile = async (req, res) => {
+    try {
+        const userID = req.user.id;
+        const { fullName, email, academicYear, major, gpa, studentCode } = req.body;
+
+        const pool = await getPool();
+        const transaction = new sql.Transaction(pool);
+
+        await transaction.begin();
+        try {
+            // 1. Update Users table (FullName, Email)
+            await transaction.request()
+                .input('userID', sql.Int, userID)
+                .input('fullName', sql.VarChar, fullName)
+                .input('email', sql.VarChar, email)
+                .query(`
+                    UPDATE Users 
+                    SET FullName = @fullName, Email = @email 
+                    WHERE UserID = @userID
+                `);
+
+            // 2. Update Students table (Year, Major, GPA, StudentCode)
+            await transaction.request()
+                .input('userID', sql.Int, userID)
+                .input('year', sql.Int, academicYear)
+                .input('major', sql.VarChar, major)
+                .input('gpa', sql.Decimal(3, 2), gpa)
+                .input('code', sql.VarChar, studentCode)
+                .query(`
+                    UPDATE Students 
+                    SET Academic_Year = @year, Major = @major, GPA = @gpa, StudentCode = @code
+                    WHERE UserID = @userID
+                `);
+
+            await transaction.commit();
+
+            // Log the action
+            const { logAudit } = require('../utils/helpers');
+            await logAudit(userID, 'UPDATE_PROFILE', `Student updated profile: ${fullName}`, req.ip);
+
+            res.json({ message: "Profile updated successfully" });
+        } catch (err) {
+            await transaction.rollback();
+            throw err;
+        }
+    } catch (err) {
+        console.error("Update Profile Error:", err);
+        res.status(500).json({ message: "An internal server error occurred while updating profile." });
+    }
+};
+
+const getCourseParticipants = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('courseId', sql.Int, courseId)
+            .query(`
+                SELECT u.UserID, u.FullName, u.Email, u.ProfilePicture,
+                       s.Major, s.Academic_Year,
+                       CASE WHEN u.UserType = 'Instructor' THEN 1 ELSE 0 END as IsInstructor
+                FROM Enrollment e
+                INNER JOIN Users u ON e.StudentID = u.UserID
+                INNER JOIN Students s ON u.UserID = s.UserID
+                WHERE e.CourseID = @courseId
+                
+                UNION
+                
+                SELECT u.UserID, u.FullName, u.Email, u.ProfilePicture,
+                       'Faculty' as Major, NULL as Academic_Year,
+                       1 as IsInstructor
+                FROM Course c
+                INNER JOIN Users u ON c.InstructorID = u.UserID
+                WHERE c.CourseID = @courseId
+            `);
+        res.json(result.recordset);
+    } catch (err) {
+        console.error("Get Course Participants Error:", err);
         res.status(500).json({ message: "An internal server error occurred." });
     }
 };
@@ -434,11 +582,13 @@ module.exports = {
     getAssignments,
     submitAssignment,
     getGrades,
+    getCourseParticipants,
     getCourseMaterials,
     getCourseAnnouncements,
     getCalendarEvents,
     getDiscussionPosts,
     createDiscussionPost,
     getDiscussionReplies,
-    createDiscussionReply
+    createDiscussionReply,
+    updateProfile
 };

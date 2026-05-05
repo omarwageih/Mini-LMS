@@ -20,12 +20,13 @@ const storage = multer.diskStorage({
     }
 });
 
-// File filter — only PDF and JPG allowed
+// File filter — only PDF and JPG allowed (with MIME check)
 const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['.pdf', '.jpg', '.jpeg'];
+    const allowedExtensions = ['.pdf', '.jpg', '.jpeg'];
+    const allowedMimeTypes = ['application/pdf', 'image/jpeg'];
     const ext = path.extname(file.originalname).toLowerCase();
 
-    if (allowedTypes.includes(ext)) {
+    if (allowedExtensions.includes(ext) && allowedMimeTypes.includes(file.mimetype)) {
         cb(null, true);
     } else {
         cb(new Error('Only PDF and JPG files are allowed.'), false);
@@ -38,4 +39,28 @@ const upload = multer({
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB max
 });
 
-module.exports = upload;
+const materialsUpload = multer({ 
+    storage: storage, 
+    limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+    fileFilter: (req, file, cb) => {
+        const allowedExtensions = ['.pdf', '.doc', '.docx', '.ppt', '.pptx', '.zip', '.jpg', '.jpeg', '.png'];
+        const allowedMimeTypes = [
+            'application/pdf', 
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'application/zip',
+            'image/jpeg',
+            'image/png'
+        ];
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (allowedExtensions.includes(ext) && allowedMimeTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('File type not allowed for course materials.'), false);
+        }
+    }
+});
+
+module.exports = { upload, materialsUpload };

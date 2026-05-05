@@ -7,14 +7,37 @@ const getStats = async (req, res) => {
         let stats = [];
 
         if (type === 'Instructor') {
-            // 1. Total Students
-            const studentCount = await pool.request().query("SELECT COUNT(*) as total FROM Students");
+            // 1. Total Students in their courses
+            const studentCount = await pool.request()
+                .input('id', sql.Int, id)
+                .query(`
+                    SELECT COUNT(DISTINCT StudentID) as total 
+                    FROM Enrollment e
+                    JOIN Course c ON e.CourseID = c.CourseID
+                    WHERE c.InstructorID = @id
+                `);
             
-            // 2. Average GPA
-            const avgGPA = await pool.request().query("SELECT AVG(GPA) as avg FROM Students");
+            // 2. Average GPA of students in their courses
+            const avgGPA = await pool.request()
+                .input('id', sql.Int, id)
+                .query(`
+                    SELECT AVG(s.GPA) as avg 
+                    FROM Students s
+                    JOIN Enrollment e ON s.UserID = e.StudentID
+                    JOIN Course c ON e.CourseID = c.CourseID
+                    WHERE c.InstructorID = @id
+                `);
             
-            // 3. Pending Submissions (Score is null)
-            const pending = await pool.request().query("SELECT COUNT(*) as total FROM Submission WHERE Score IS NULL");
+            // 3. Pending Submissions in their courses
+            const pending = await pool.request()
+                .input('id', sql.Int, id)
+                .query(`
+                    SELECT COUNT(sub.SubID) as total 
+                    FROM Submission sub
+                    JOIN Assignment a ON sub.AssignmentID = a.AssignmentID
+                    JOIN Course c ON a.CourseID = c.CourseID
+                    WHERE c.InstructorID = @id AND sub.Score IS NULL
+                `);
 
             stats = [
                 { label: 'Total Students', val: studentCount.recordset[0].total.toString(), icon: 'Users', color: 'text-blue-500', bg: 'bg-blue-500/10', path: '/instructor/students' },

@@ -167,7 +167,41 @@ const runMigrations = async () => {
             )
             ALTER TABLE Users ADD LockedUntil DATETIME NULL;
         `);
-        console.log('✅ Migration 10: Account lockout columns ensured.');
+        await pool.request().query(`
+            IF NOT EXISTS (
+                SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'Users' AND COLUMN_NAME = 'ResetPasswordToken'
+            )
+            ALTER TABLE Users ADD ResetPasswordToken VARCHAR(255) NULL;
+        `);
+        await pool.request().query(`
+            IF NOT EXISTS (
+                SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'Users' AND COLUMN_NAME = 'ResetPasswordExpires'
+            )
+            ALTER TABLE Users ADD ResetPasswordExpires DATETIME NULL;
+        `);
+        console.log('✅ Migration 10: Account lockout and reset columns ensured.');
+
+        // 11. Add Feedback column to Submission
+        await pool.request().query(`
+            IF NOT EXISTS (
+                SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'Submission' AND COLUMN_NAME = 'Feedback'
+            )
+            ALTER TABLE Submission ADD Feedback NVARCHAR(MAX) NULL;
+        `);
+        console.log('✅ Migration 11: Submission.Feedback column ensured.');
+
+        // 12. Add StudentCode column to Students
+        await pool.request().query(`
+            IF NOT EXISTS (
+                SELECT * FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_NAME = 'Students' AND COLUMN_NAME = 'StudentCode'
+            )
+            ALTER TABLE Students ADD StudentCode VARCHAR(20) UNIQUE;
+        `);
+        console.log('✅ Migration 12: Students.StudentCode column ensured.');
 
         console.log('All migrations completed successfully.');
     } catch (err) {

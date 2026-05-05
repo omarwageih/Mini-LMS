@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { UserPlus, Trash2, Link2, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { apiGet, apiPost, apiDelete } from '../../api';
+import { apiGet, apiPost, apiDelete } from '../../services/api';
 
 const ManageAssistants = () => {
     const [assistants, setAssistants] = useState([]);
     const [courses, setCourses] = useState([]);
     const [form, setForm] = useState({ fullName: '', email: '', password: '' });
-    const [assignForm, setAssignForm] = useState({ assistantID: '', courseID: '' });
+    const [assignForm, setAssignForm] = useState({ assistantId: '', courseId: '' });
     const [msg, setMsg] = useState({ text: '', type: '' });
     const [loading, setLoading] = useState(false);
 
@@ -32,7 +32,7 @@ const ManageAssistants = () => {
             setMsg({ text: 'Assistant added successfully!', type: 'success' });
             setForm({ fullName: '', email: '', password: '' });
             loadData();
-        } catch (err) { setMsg({ text: err.message, type: 'error' }); }
+        } catch (err) { setMsg({ text: err.response?.data?.message || err.message, type: 'error' }); }
         setLoading(false);
     };
 
@@ -50,7 +50,7 @@ const ManageAssistants = () => {
         try {
             await apiPost('/instructor/assistants/assign-course', assignForm);
             setMsg({ text: 'Assistant assigned to course successfully!', type: 'success' });
-            setAssignForm({ assistantID: '', courseID: '' });
+            setAssignForm({ assistantId: '', courseId: '' });
         } catch (err) { setMsg({ text: err.message, type: 'error' }); }
     };
 
@@ -103,8 +103,9 @@ const ManageAssistants = () => {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Secure Password</label>
-                                <input type="password" placeholder="••••••••" required value={form.password} onChange={e => setForm({...form, password: e.target.value})}
+                                <input type="password" placeholder="Min 8 chars, 1 uppercase, 1 number" required minLength={8} value={form.password} onChange={e => setForm({...form, password: e.target.value})}
                                     className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-5 rounded-[1.5rem] outline-none focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 transition-all text-sm font-bold text-slate-800 dark:text-white" />
+                                <p className="text-[9px] text-slate-400 ml-2">Must be 8+ chars with at least 1 uppercase letter and 1 number</p>
                             </div>
                             <button type="submit" disabled={loading} className="w-full py-5 bg-gradient-to-r from-purple-600 via-blue-500 to-cyan-500 text-white font-black rounded-2xl shadow-xl shadow-purple-500/20 hover:shadow-purple-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all text-[11px] tracking-[0.3em] uppercase mt-4">
                                 {loading ? 'Updating Identity Pool...' : 'Add To Faculty'}
@@ -131,7 +132,7 @@ const ManageAssistants = () => {
                         <form onSubmit={handleAssign} className="space-y-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Target Assistant</label>
-                                <select value={assignForm.assistantID} onChange={e => setAssignForm({...assignForm, assistantID: e.target.value})} required
+                                <select value={assignForm.assistantId} onChange={e => setAssignForm({...assignForm, assistantId: e.target.value})} required
                                     className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-5 rounded-[1.5rem] outline-none focus:border-cyan-500 transition-all text-sm font-bold text-slate-800 dark:text-white appearance-none cursor-pointer">
                                     <option value="">Select Personnel</option>
                                     {assistants.map(a => <option key={a.AssistantID} value={a.AssistantID}>{a.FullName}</option>)}
@@ -139,7 +140,7 @@ const ManageAssistants = () => {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Module Integration</label>
-                                <select value={assignForm.courseID} onChange={e => setAssignForm({...assignForm, courseID: e.target.value})} required
+                                <select value={assignForm.courseId} onChange={e => setAssignForm({...assignForm, courseId: e.target.value})} required
                                     className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-5 rounded-[1.5rem] outline-none focus:border-cyan-500 transition-all text-sm font-bold text-slate-800 dark:text-white appearance-none cursor-pointer">
                                     <option value="">Select Course</option>
                                     {courses.map(c => <option key={c.CourseID} value={c.CourseID}>{c.CourseName}</option>)}

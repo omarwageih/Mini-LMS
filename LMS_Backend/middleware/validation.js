@@ -8,7 +8,7 @@ const registerSchema = z.object({
         .min(8, 'Password must be at least 8 characters')
         .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
         .regex(/[0-9]/, 'Password must contain at least one number'),
-    userType: z.enum(['Student', 'Assistant'], { message: 'Invalid user type' }),
+    userType: z.enum(['Student'], { message: 'Only Student registration is allowed here' }),
     phone: z.string().optional()
 });
 
@@ -30,21 +30,23 @@ const resetPasswordSchema = z.object({
         .regex(/[0-9]/, 'Password must contain at least one number')
 });
 
-const googleLoginSchema = z.object({
-    credential: z.string().min(1, 'Google credential is required')
-});
-
 // ===== Instructor Schemas =====
 const addAssistantSchema = z.object({
     fullName: z.string().min(2).max(100),
     email: z.string().email(),
-    password: z.string().min(8)
+    password: z.string()
+        .min(8, 'Password must be at least 8 characters')
+        .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+        .regex(/[0-9]/, 'Password must contain at least one number')
 });
 
 const addStudentSchema = z.object({
     fullName: z.string().min(2).max(100),
     email: z.string().email(),
-    password: z.string().min(8)
+    password: z.string()
+        .min(8, 'Password must be at least 8 characters')
+        .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+        .regex(/[0-9]/, 'Password must contain at least one number')
 });
 
 const enrollStudentSchema = z.object({
@@ -59,6 +61,7 @@ const assignAssistantSchema = z.object({
 
 const createCourseSchema = z.object({
     name: z.string().min(1).max(200),
+    maxMarks: z.union([z.string(), z.number()]).optional(),
     description: z.string().optional()
 });
 
@@ -71,14 +74,16 @@ const addWeekSchema = z.object({
 const addMaterialSchema = z.object({
     weekId: z.union([z.string(), z.number()]),
     title: z.string().min(1).max(200),
-    type: z.string().optional(),
+    fileType: z.string().optional(),
     url: z.string().optional()
-});
+}).passthrough();
 
 const addLectureSchema = z.object({
-    weekId: z.union([z.string(), z.number()]),
+    courseId: z.union([z.string(), z.number()]),
     title: z.string().min(1).max(200),
-    videoUrl: z.string().optional()
+    date: z.string().min(1, 'Date is required'),
+    startTime: z.string().optional(),
+    endTime: z.string().optional()
 });
 
 const createAssignmentSchema = z.object({
@@ -86,14 +91,25 @@ const createAssignmentSchema = z.object({
     title: z.string().min(1).max(200),
     description: z.string().optional(),
     deadline: z.string().min(1, 'Deadline is required'),
-    maxGrade: z.union([z.string(), z.number()]).optional()
+    maxScore: z.union([z.string(), z.number()]).optional()
 });
 
 // ===== Assistant Schemas =====
-const gradeSubmissionSchema = z.object({
+const instructorGradeSubmissionSchema = z.object({
     submissionId: z.union([z.string(), z.number()]),
-    grade: z.union([z.string(), z.number()]),
+    score: z.union([z.string(), z.number()]),
     feedback: z.string().optional()
+});
+
+const assistantGradeSubmissionSchema = z.object({
+    submissionId: z.union([z.string(), z.number()]),
+    score: z.union([z.string(), z.number()])
+});
+
+const createAnnouncementSchema = z.object({
+    courseId: z.union([z.string(), z.number()]),
+    title: z.string().min(1).max(200),
+    content: z.string().min(1)
 });
 
 // ===== Validation Middleware =====
@@ -103,6 +119,7 @@ const validate = (schema) => (req, res, next) => {
         next();
     } catch (err) {
         const errors = err.errors?.map(e => e.message) || ['Invalid input'];
+        console.error("Zod Validation Error:", err);
         return res.status(400).json({ message: errors[0], errors });
     }
 };
@@ -121,10 +138,20 @@ const idParamSchema = z.object({
     id: z.string().regex(/^\d+$/, 'ID must be a number')
 });
 
+const updateProfileSchema = z.object({
+    fullName: z.string().min(2).max(100).optional(),
+    phone: z.string().optional(),
+    studentCode: z.string().optional(),
+    academicYear: z.union([z.string(), z.number()]).optional(),
+    major: z.string().optional(),
+    gpa: z.union([z.string(), z.number()]).optional()
+});
+
 module.exports = {
-    registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema, googleLoginSchema,
+    registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema,
     addAssistantSchema, addStudentSchema, enrollStudentSchema, assignAssistantSchema,
-    createCourseSchema, addWeekSchema, addMaterialSchema, addLectureSchema, createAssignmentSchema,
-    gradeSubmissionSchema, idParamSchema,
+    createCourseSchema, addWeekSchema, addMaterialSchema, addLectureSchema, createAssignmentSchema, createAnnouncementSchema,
+    instructorGradeSubmissionSchema, assistantGradeSubmissionSchema, idParamSchema,
+    updateProfileSchema,
     validate, validateParams
 };

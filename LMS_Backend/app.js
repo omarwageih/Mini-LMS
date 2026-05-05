@@ -18,20 +18,24 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ===== Rate Limiting =====
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 20,
-    message: { message: 'Too many requests. Please try again later.' },
-    standardHeaders: true,
-    legacyHeaders: false
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        console.log(`${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`);
+    });
+    next();
 });
 
-const forgotPasswordLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
-    message: { message: 'Too many password reset requests. Please try again later.' }
-});
+// ===== Rate Limiting =====
+// const globalLimiter = rateLimit({
+//     windowMs: 15 * 60 * 1000, // 15 minutes
+//     max: 10000, // Increased for dev
+//     message: { message: 'General API limit reached. Please try again later.' },
+//     standardHeaders: true,
+//     legacyHeaders: false
+// });
+// app.use('/api/', globalLimiter);
 
 // Serve uploaded files as static
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -44,11 +48,6 @@ const studentRoutes = require('./routes/studentRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
-// Apply rate limiters to auth routes
-app.use('/api/auth/login', authLimiter);
-app.use('/api/auth/register', authLimiter);
-app.use('/api/auth/forgot-password', forgotPasswordLimiter);
-
 app.use('/api/auth', authRoutes);
 app.use('/api/instructor', instructorRoutes);
 app.use('/api/assistant', assistantRoutes);
@@ -57,8 +56,13 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 const runMigrations = require('./migrate');
+const http = require('http');
+const { initSocket } = require('./socket');
 
-app.listen(process.env.PORT || 3000, async () => {
+const server = http.createServer(app);
+initSocket(server);
+
+server.listen(process.env.PORT || 3000, async () => {
     console.log(`Server running on port ${process.env.PORT || 3000}`);
     await runMigrations();
 });

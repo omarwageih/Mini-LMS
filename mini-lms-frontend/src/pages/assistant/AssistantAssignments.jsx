@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ClipboardList, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { apiGet, apiPost } from '../../api';
+import { apiGet, apiPost } from '../../services/api';
 
 const AssistantAssignments = () => {
     const [courses, setCourses] = useState([]);
-    const [form, setForm] = useState({ courseID: '', title: '', maxScore: '', deadline: '' });
+    const [form, setForm] = useState({ courseId: '', title: '', maxScore: '', deadline: '' });
     const [msg, setMsg] = useState({ text: '', type: '' });
 
     useEffect(() => {
@@ -20,7 +20,7 @@ const AssistantAssignments = () => {
         try {
             await apiPost('/assistant/assignments', form);
             setMsg({ text: 'Assignment created successfully!', type: 'success' });
-            setForm({ courseID: '', title: '', maxScore: '', deadline: '' });
+            setForm({ courseId: '', title: '', maxScore: '', deadline: '' });
         } catch (err) { setMsg({ text: err.message, type: 'error' }); }
     };
 
@@ -45,7 +45,7 @@ const AssistantAssignments = () => {
 
                 <div className="glass-card p-8 border border-slate-100 dark:border-white/5 bg-white/70 dark:bg-slate-900/60">
                     <form onSubmit={handleCreate} className="space-y-4">
-                        <select value={form.courseID} onChange={e => setForm({...form, courseID: e.target.value})} required className={inputClass}>
+                        <select value={form.courseId} onChange={e => setForm({...form, courseId: e.target.value})} required className={inputClass}>
                             <option value="">Select Course</option>
                             {courses.map(c => <option key={c.CourseID} value={c.CourseID}>{c.CourseName}</option>)}
                         </select>

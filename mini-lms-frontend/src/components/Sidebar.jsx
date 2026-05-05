@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Sun, Moon, LayoutDashboard, BookOpen,
   User, LogOut, GraduationCap, Award, ClipboardList,
-  Users, PlusSquare, Menu, X, CalendarDays, Search
+  Users, PlusSquare, Menu, X, CalendarDays
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -136,18 +136,6 @@ const Sidebar = ({ isDark, toggleTheme }) => {
             );
           })}
         </nav>
-
-        {/* Quick Search Hint */}
-        <div className="px-6 py-2">
-          <button
-            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/50 dark:border-white/5 text-slate-400 hover:text-blue-500 hover:border-blue-500/20 transition-all group"
-          >
-            <Search size={16} className="group-hover:text-blue-500" />
-            <span className="text-[10px] font-bold flex-1 text-left">Search pages...</span>
-            <kbd className="px-1.5 py-0.5 bg-white dark:bg-slate-800 text-[8px] font-black text-slate-400 rounded border border-slate-200 dark:border-white/10">⌘K</kbd>
-          </button>
-        </div>
 
         {/* 🛠 Bottom Actions */}
         <div className="p-6 space-y-4 border-t border-slate-100 dark:border-white/5">

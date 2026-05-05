@@ -123,7 +123,7 @@ const Calendar = () => {
                                     {hasDeadline && (
                                         <div className="flex justify-center gap-0.5 mt-1">
                                             {dayEvents.slice(0, 3).map((e, idx) => (
-                                                <div key={idx} className={`w-1.5 h-1.5 rounded-full ${e.Submitted ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                                <div key={idx} className={`w-1.5 h-1.5 rounded-full ${e.Type === 'Lecture' ? 'bg-purple-500' : e.Submitted ? 'bg-emerald-500' : 'bg-red-500'}`} />
                                             ))}
                                         </div>
                                     )}
@@ -133,7 +133,7 @@ const Calendar = () => {
                     </div>
 
                     {/* Legend */}
-                    <div className="flex items-center gap-6 mt-6 pt-4 border-t border-slate-100 dark:border-white/5">
+                    <div className="flex flex-wrap items-center gap-4 sm:gap-6 mt-6 pt-4 border-t border-slate-100 dark:border-white/5">
                         <div className="flex items-center gap-2">
                             <div className="w-2.5 h-2.5 rounded-full bg-red-500" />
                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Pending</span>
@@ -141,6 +141,10 @@ const Calendar = () => {
                         <div className="flex items-center gap-2">
                             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Submitted</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Live Broadcast</span>
                         </div>
                     </div>
                 </div>

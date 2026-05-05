@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Clock, Users, Monitor, ChevronRight } from 'lucide-react';
-import { apiGet } from '../api';
+import { apiGet } from '../services/api';
 import { SkeletonCourseCard } from '../components/Skeletons';
 import EmptyState from '../components/EmptyState';
 

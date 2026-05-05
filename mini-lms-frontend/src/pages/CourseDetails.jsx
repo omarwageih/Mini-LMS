@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    ArrowLeft, FileText, Video, ClipboardList,
-    ChevronRight, BookOpen, Layers, Monitor, Calendar, MessageSquare, X, Play
+    ArrowLeft, FileText, Video, ClipboardList, Target,
+    ChevronRight, ChevronDown, X, Calendar, BookOpen, Users, Award
 } from 'lucide-react';
-import { apiGet } from '../api';
+import { apiGet } from '../services/api';
 import ReactPlayer from 'react-player';
+import ParticipantsTab from './course-tabs/ParticipantsTab';
+import GradesTab from './course-tabs/GradesTab';
+import ActivitiesTab from './course-tabs/ActivitiesTab';
+import CompetenciesTab from './course-tabs/CompetenciesTab';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -16,12 +20,21 @@ const CourseDetails = () => {
     const [courseData, setCourseData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeVideo, setActiveVideo] = useState(null);
+    const [expandedWeeks, setExpandedWeeks] = useState({});
+    const [activeTab, setActiveTab] = useState('course'); // 'course' | 'participants' | 'grades' | 'activities' | 'competencies'
 
     useEffect(() => {
         const load = async () => {
             try {
                 const data = await apiGet(`/student/courses/${id}/content`);
                 setCourseData(data);
+                
+                // Expand all weeks by default or just the first one
+                const initialExpanded = {};
+                if (data.weeks) {
+                    data.weeks.forEach(w => { initialExpanded[w.WeekID] = true });
+                }
+                setExpandedWeeks(initialExpanded);
             } catch (err) {
                 console.error(err);
             }
@@ -30,261 +43,255 @@ const CourseDetails = () => {
         load();
     }, [id]);
 
+    const toggleWeek = (weekId) => {
+        setExpandedWeeks(prev => ({
+            ...prev,
+            [weekId]: !prev[weekId]
+        }));
+    };
+
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <p className="text-slate-400 font-bold text-sm uppercase tracking-widest animate-pulse">Loading course...</p>
+            <div className="min-h-screen bg-white dark:bg-[#020617] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-500 dark:text-slate-400 font-black uppercase tracking-[0.2em] text-[10px] italic">Accessing Terminal...</p>
+                </div>
             </div>
         );
     }
 
     if (!courseData || !courseData.course) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <p className="text-slate-400 font-bold text-sm">Course not found or not enrolled.</p>
+            <div className="min-h-screen bg-white flex items-center justify-center">
+                <p className="text-slate-500 font-medium">Course not found.</p>
             </div>
         );
     }
 
     const { course, weeks, lectures, assignments } = courseData;
 
-    return (
-        <div className="min-h-screen pt-10 px-6 pb-20 selection:bg-cyan-500/30">
-            <div className="max-w-5xl mx-auto space-y-10">
-
-                {/* 🌌 Header Area */}
-                <div className="relative">
-                    <div className="absolute -top-20 -left-20 w-96 h-96 bg-blue-500/10 blur-[120px] rounded-full pointer-events-none" />
-                    <div className="absolute -top-20 -right-20 w-96 h-96 bg-cyan-500/10 blur-[120px] rounded-full pointer-events-none" />
-                    
-                    <div className="relative space-y-8">
-                        <button
-                            onClick={() => navigate('/student/courses')}
-                            className="flex items-center gap-2 text-slate-500 hover:text-blue-600 dark:hover:text-cyan-400 transition-all group w-fit bg-white/50 dark:bg-white/5 px-5 py-2.5 rounded-2xl border border-slate-200 dark:border-white/10 hover:border-blue-500/30 backdrop-blur-md"
-                        >
-                            <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Return to Course Deck</span>
-                        </button>
-
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10">
-                            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-                                <div className="flex items-center gap-4">
-                                    <span className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-xl tracking-widest uppercase shadow-lg shadow-blue-500/20">
-                                        Course ID {course.CourseID}
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-pulse" />
-                                        <span className="text-slate-400 text-[10px] font-black uppercase tracking-[0.3em] opacity-70 italic font-outfit">Syllabus Active</span>
-                                    </div>
+    const renderTabContent = () => {
+        switch (activeTab) {
+            case 'course':
+                return (
+                    <div className="space-y-6 pt-6">
+                        {/* General Section */}
+                        <div className="border border-slate-200 dark:border-white/5 rounded-2xl bg-white dark:bg-slate-900/40 overflow-hidden shadow-sm">
+                            <div className="px-6 py-5 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
+                                <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest">General Resources</h2>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => setExpandedWeeks({})}
+                                        className="text-[10px] font-black text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 uppercase tracking-tighter transition-colors"
+                                    >
+                                        Collapse all
+                                    </button>
                                 </div>
-                                <h1 className="text-5xl md:text-7xl font-black text-slate-900 dark:text-white uppercase tracking-tighter leading-[0.8] font-stalinist">
-                                    {course.CourseName}
-                                </h1>
-                                <p className="text-slate-500 dark:text-slate-400 text-sm font-black uppercase tracking-[0.2em] flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 flex items-center justify-center font-black">
-                                        {course.InstructorName?.charAt(0)}
-                                    </div>
-                                    <span className="opacity-80">Principal Instructor:</span>
-                                    <span className="text-slate-900 dark:text-white">{course.InstructorName}</span>
-                                </p>
-                            </motion.div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                    {/* 📅 Main Content (Left Column) */}
-                    <div className="lg:col-span-2 space-y-12">
-                        <section className="space-y-8">
-                            <div className="flex items-center gap-6">
-                                <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white flex items-center gap-3 italic">
-                                    <Layers className="text-blue-600" size={24} />
-                                    Study Modules
-                                </h2>
-                                <div className="h-px flex-1 bg-gradient-to-r from-slate-200 dark:from-white/10 to-transparent"></div>
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{weeks.length} Weeks Available</span>
                             </div>
-
-                            {weeks.length === 0 ? (
-                                <div className="p-20 text-center glass-card border-dashed border-2">
-                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Syllabus content pending deployment</p>
-                                </div>
-                            ) : (
-                                <div className="grid gap-6">
-                                    {weeks.map((week, index) => (
-                                        <motion.div
-                                            key={week.WeekID || index}
-                                            initial={{ opacity: 0, y: 20 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: index * 0.1 }}
-                                            className="glass-card group border border-slate-100 dark:border-white/5 bg-white/80 dark:bg-slate-900/40 relative overflow-hidden"
-                                        >
-                                            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl pointer-events-none" />
-                                            
-                                            {/* Week Header */}
-                                            <div className="p-8 flex justify-between items-center bg-slate-50/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5">
-                                                <div className="flex items-center gap-6">
-                                                    <div className="relative">
-                                                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 dark:from-white dark:to-slate-200 text-white dark:text-slate-900 flex items-center justify-center text-2xl font-black shadow-xl group-hover:rotate-6 transition-transform">
-                                                            {week.WeekNumber}
+                            <div className="px-6 py-5 border-t border-slate-100 dark:border-white/5 space-y-4">
+                                <Link to={`/discussions/${course.CourseID}`} className="flex items-center gap-4 group p-3 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-all border border-transparent hover:border-blue-100 dark:hover:border-blue-500/20">
+                                    <div className="p-2.5 bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl group-hover:scale-110 transition-transform">
+                                        <BookOpen size={20} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <span className="font-bold text-slate-800 dark:text-white block group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Course Announcements & Discussions</span>
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">Join the conversation and stay updated</span>
+                                    </div>
+                                    <ChevronRight size={16} className="text-slate-300 group-hover:translate-x-1 transition-transform" />
+                                </Link>
+                                
+                                {assignments && assignments.length > 0 && (
+                                    <div className="mt-6 pt-6 border-t border-slate-100 dark:border-white/5">
+                                        <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-4 ml-1">Critical Deadlines</h3>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {assignments.map(a => (
+                                                <div key={a.AssignmentID} className="flex items-center justify-between p-4 rounded-xl bg-slate-50/50 dark:bg-white/5 border border-slate-100 dark:border-white/5 hover:border-blue-200 dark:hover:border-blue-500/30 transition-all">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 bg-purple-100 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-lg">
+                                                            <ClipboardList size={16} />
                                                         </div>
-                                                        <div className="absolute -top-2 -right-2 px-2 py-1 bg-blue-600 text-white text-[8px] font-black rounded-md tracking-widest uppercase">Cycle</div>
+                                                        <span className="text-sm text-slate-800 dark:text-white font-bold truncate max-w-[120px]">{a.Title}</span>
                                                     </div>
-                                                    <div>
-                                                        <h3 className="font-black text-slate-800 dark:text-white uppercase text-xl tracking-tighter group-hover:text-blue-600 dark:group-hover:text-cyan-400 transition-colors">
-                                                            {week.Title}
-                                                        </h3>
-                                                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-1">Operational Module {week.WeekNumber}</p>
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="text-[9px] text-slate-400 dark:text-slate-500 font-black uppercase">Due Date</span>
+                                                        <span className="text-[11px] text-red-500 dark:text-red-400 font-bold">{a.Deadline ? new Date(a.Deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : 'N/A'}</span>
                                                     </div>
                                                 </div>
-                                            </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
 
-                                            {/* Week Materials */}
-                                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                {week.materials && week.materials.map((item, i) => {
-                                                    const isVideo = item.FilePath && item.FilePath.match(/\.(mp4|webm|ogg)$/i);
-                                                    return (
-                                                        <motion.div
-                                                            key={`mat-${i}`}
-                                                            whileHover={{ scale: 1.02 }}
-                                                            onClick={() => isVideo ? setActiveVideo(item) : window.open(`${API_URL}${item.FilePath}`, '_blank')}
-                                                            className="flex items-center gap-5 p-5 rounded-3xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 hover:bg-white dark:hover:bg-white/10 hover:shadow-2xl hover:shadow-blue-500/10 transition-all cursor-pointer group/item"
-                                                        >
-                                                            <div className={`w-12 h-12 rounded-2xl bg-white dark:bg-slate-800 flex items-center justify-center transition-all shadow-sm border border-slate-200 dark:border-white/5 ${isVideo ? 'text-emerald-500 group-hover/item:bg-emerald-500 group-hover/item:text-white group-hover/item:border-emerald-500' : 'text-slate-500 dark:text-slate-400 group-hover/item:bg-blue-600 group-hover/item:text-white'}`}>
-                                                                {isVideo ? <Play size={20} /> : <FileText size={20} />}
-                                                            </div>
-                                                            <div className="space-y-1">
-                                                                <p className="text-sm font-black text-slate-700 dark:text-slate-200 tracking-tight leading-tight line-clamp-1">{item.Title}</p>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${isVideo ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-blue-500/10 text-blue-600 dark:text-cyan-400'}`}>
-                                                                        {isVideo ? 'Video Stream' : 'Document'}
-                                                                    </span>
-                                                                    <span className="text-[8px] text-slate-400 font-bold uppercase tracking-widest leading-none">Ver 1.0</span>
+                        {/* Weeks Accordions */}
+                        {weeks.map((week) => {
+                            const isExpanded = expandedWeeks[week.WeekID];
+                            let dateString = week.Title || `Week ${week.WeekNumber}`;
+                            if (week.StartDate && week.EndDate) {
+                                const start = new Date(week.StartDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
+                                const end = new Date(week.EndDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
+                                dateString = `${start} - ${end}`;
+                            }
+
+                            return (
+                                <div key={week.WeekID} className="border border-slate-200 dark:border-white/5 rounded-2xl bg-white dark:bg-slate-900/40 overflow-hidden shadow-sm">
+                                    <div 
+                                        onClick={() => toggleWeek(week.WeekID)}
+                                        className="w-full px-6 py-5 flex items-center gap-3 bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors text-left cursor-pointer"
+                                    >
+                                        <div className="w-6 h-6 rounded-lg bg-blue-100 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                        </div>
+                                        <h2 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest">{dateString}</h2>
+                                    </div>
+                                    
+                                    <AnimatePresence>
+                                        {isExpanded && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <div className="px-6 py-5 border-t border-slate-100 dark:border-white/5 space-y-3 pl-16">
+                                                    {week.materials && week.materials.map(mat => {
+                                                        const isVideo = mat.FileURL && mat.FileURL.match(/\.(mp4|webm|ogg)$/i);
+                                                        return (
+                                                            <div 
+                                                                key={`mat-${mat.MaterialID}`} 
+                                                                onClick={() => isVideo ? setActiveVideo(mat) : window.open(`${API_URL}${mat.FileURL}`, '_blank')}
+                                                                className="flex items-center justify-between group p-2 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl transition-colors cursor-pointer"
+                                                            >
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className={`p-2 rounded-lg ${isVideo ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-500' : 'bg-blue-50 dark:bg-blue-500/10 text-blue-500'}`}>
+                                                                        {isVideo ? <Video size={16} /> : <FileText size={16} />}
+                                                                    </div>
+                                                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{mat.Title}</span>
                                                                 </div>
+                                                                <button className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-blue-600 dark:hover:bg-blue-600 text-slate-600 dark:text-slate-400 hover:text-white text-[10px] font-black uppercase tracking-widest rounded-lg transition-all">
+                                                                    {isVideo ? 'Play Video' : 'Download'}
+                                                                </button>
                                                             </div>
-                                                        </motion.div>
-                                                    );
-                                                })}
+                                                        );
+                                                    })}
 
-                                                {(!week.materials || week.materials.length === 0) && (
-                                                    <div className="col-span-full py-8 text-center bg-slate-50/50 dark:bg-white/5 rounded-3xl border border-dashed border-slate-200 dark:border-white/10">
-                                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No primary resources at this stage</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </motion.div>
-                                    ))}
+                                                    {week.lectures && week.lectures.map(lec => (
+                                                        <div key={`lec-${lec.LectureID}`} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50/50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+                                                            <div className="p-2 bg-orange-50 dark:bg-orange-500/10 text-orange-500 rounded-lg">
+                                                                <Calendar size={16} />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <span className="text-sm font-bold text-slate-800 dark:text-white block">{lec.Title}</span>
+                                                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">
+                                                                    {lec.Date ? new Date(lec.Date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : ''} 
+                                                                    {lec.Start_Time ? ` • ${lec.Start_Time}` : ''}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+
+                                                    {(!week.materials?.length && !week.lectures?.length) && (
+                                                        <p className="text-xs text-slate-400 dark:text-slate-500 italic">No activities or resources available yet.</p>
+                                                    )}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
-                            )}
-                        </section>
+                            );
+                        })}
                     </div>
+                );
+            case 'participants':
+                return <ParticipantsTab courseId={id} />;
+            case 'grades':
+                return <GradesTab courseId={id} />;
+            case 'activities':
+                return <ActivitiesTab assignments={assignments} />;
+            case 'competencies':
+                return <CompetenciesTab />;
+            default:
+                return null;
+        }
+    };
 
-                    {/* 🎥 Sidebar (Right Column) */}
-                    <div className="space-y-12">
-                        {/* Session Feeds */}
-                        <section className="space-y-6">
-                            <div className="flex items-center gap-4">
-                                <h2 className="text-lg font-black uppercase tracking-widest text-slate-900 dark:text-white flex items-center gap-3 italic">
-                                    <Video className="text-emerald-500" size={20} />
-                                    Sessions
-                                </h2>
-                                <div className="h-px flex-1 bg-gradient-to-r from-slate-200 dark:from-white/10 to-transparent"></div>
-                            </div>
-                            
-                            <div className="space-y-4">
-                                {lectures && lectures.length > 0 ? lectures.map((lec, i) => (
-                                    <div key={lec.LectureID || i} className="glass-card p-6 border border-slate-100 dark:border-white/5 bg-white/50 dark:bg-white/5 hover:border-emerald-500/30 transition-all group">
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/10 group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                                                <Video size={20} />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none group-hover:text-emerald-500 transition-colors">{lec.Title}</p>
-                                                <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest mt-1 opacity-70">Live Stream</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-white/5">
-                                            <div className="flex flex-col">
-                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Temporal Log</span>
-                                                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                                                    {lec.Date ? new Date(lec.Date).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : 'N/A'}
-                                                </span>
-                                            </div>
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Duration</span>
-                                                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                                                    {lec.Start_Time || '00:00'} - {lec.End_Time || '00:00'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )) : (
-                                    <p className="text-center py-10 text-[10px] font-black text-slate-400 uppercase tracking-widest border border-dashed border-slate-100 dark:border-white/10 rounded-3xl">Offline Feeds Only</p>
-                                )}
-                            </div>
-                        </section>
+    const tabs = [
+        { id: 'course', label: 'General', icon: <BookOpen size={16} /> },
+        { id: 'participants', label: 'Participants', icon: <Users size={16} /> },
+        { id: 'grades', label: 'Grades', icon: <Award size={16} /> },
+        { id: 'activities', label: 'Activities', icon: <ClipboardList size={16} /> },
+        { id: 'competencies', label: 'Competencies', icon: <Target size={16} /> }
+    ];
 
-                        {/* Objectives Tracker */}
-                        <section className="space-y-6">
-                            <div className="flex items-center gap-4">
-                                <h2 className="text-lg font-black uppercase tracking-widest text-slate-900 dark:text-white flex items-center gap-3 italic">
-                                    <ClipboardList className="text-[#a78bfa]" size={20} />
-                                    Tasks
-                                </h2>
-                                <div className="h-px flex-1 bg-gradient-to-r from-slate-200 dark:from-white/10 to-transparent"></div>
-                            </div>
-                            
-                            <div className="space-y-4">
-                                {assignments && assignments.length > 0 ? assignments.map((a, i) => (
-                                    <div key={a.AssignmentID || i} className="glass-card p-6 border border-slate-100 dark:border-white/5 bg-white/50 dark:bg-white/5 hover:border-purple-500/30 transition-all group">
-                                        <div className="flex items-center gap-4 mb-4">
-                                            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 text-purple-500 flex items-center justify-center border border-purple-500/10 group-hover:bg-purple-500 group-hover:text-white transition-all">
-                                                <ClipboardList size={20} />
-                                            </div>
-                                            <div>
-                                                <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none group-hover:text-purple-600 dark:group-hover:text-[#a78bfa] transition-colors">{a.Title}</p>
-                                                <p className="text-[10px] font-black text-purple-600 dark:text-[#a78bfa] uppercase tracking-widest mt-1 opacity-70">Active Submission</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-white/5">
-                                            <div className="flex flex-col">
-                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Yield</span>
-                                                <span className="text-[10px] font-black text-emerald-500 uppercase">{a.Max_Score} Pts</span>
-                                            </div>
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Cutoff</span>
-                                                <span className="text-[10px] font-bold text-red-500 uppercase">
-                                                    {a.Deadline ? new Date(a.Deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short' }) : 'No Cutoff'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )) : (
-                                    <p className="text-center py-10 text-[10px] font-black text-slate-400 uppercase tracking-widest border border-dashed border-slate-100 dark:border-white/10 rounded-3xl">Registry Clear</p>
-                                )}
-                            </div>
-                        </section>
-
-                        {/* Discussion Forum Link */}
-                        <section>
-                            <Link
-                                to={`/discussions/${course.CourseID}`}
-                                className="flex items-center justify-between p-6 glass-card border border-slate-100 dark:border-white/5 bg-white/50 dark:bg-white/5 hover:border-blue-500/30 hover:shadow-lg transition-all group rounded-3xl"
-                            >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-all">
-                                        <MessageSquare size={20} />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">Discussion Forum</p>
-                                        <p className="text-[10px] text-slate-400 font-bold">Ask questions & collaborate</p>
-                                    </div>
-                                </div>
-                                <ChevronRight size={18} className="text-slate-300 group-hover:text-blue-500 group-hover:translate-x-1 transition-all" />
-                            </Link>
-                        </section>
+    return (
+        <div className="min-h-screen bg-slate-50/30 dark:bg-transparent text-slate-900 dark:text-white pb-20">
+            {/* Top Navigation Bar area */}
+            <div className="border-b border-slate-200 dark:border-white/5 px-6 py-4 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
+                <div className="max-w-5xl mx-auto flex items-center justify-between">
+                    <button
+                        onClick={() => navigate('/courses')}
+                        className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm font-bold uppercase tracking-widest transition-colors"
+                    >
+                        <ArrowLeft size={16} />
+                        My Workspace
+                    </button>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-1 rounded uppercase tracking-tighter">Student View</span>
                     </div>
                 </div>
+            </div>
+
+            <div className="max-w-5xl mx-auto px-6 mt-12 space-y-8">
+                {/* Course Header */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div className="space-y-2">
+                        <h1 className="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter uppercase leading-none">
+                            {course.CourseName}
+                        </h1>
+                        <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-[0.3em] ml-1">Academic Content Hub</p>
+                    </div>
+                </div>
+
+                {/* Modern Tabs */}
+                <div className="flex items-center gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl w-fit shadow-sm overflow-x-auto no-scrollbar">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-2 px-6 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${
+                                activeTab === tab.id 
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
+                                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
+                            }`}
+                        >
+                            {tab.icon}
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Main Content Area */}
+                <div className="min-h-[400px]">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeTab}
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -10 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            {renderTabContent()}
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
+            </div>
+
+            {/* Background Aurora Effects */}
+            <div className="fixed inset-0 pointer-events-none z-[-1] opacity-20 dark:opacity-30 transition-opacity duration-1000">
+                <div className="absolute top-[-10%] left-[-5%] w-[50%] h-[50%] bg-blue-600/10 dark:bg-blue-500/10 blur-[130px] rounded-full animate-pulse"></div>
+                <div className="absolute bottom-[-10%] right-[-5%] w-[45%] h-[45%] bg-indigo-500/10 dark:bg-indigo-400/10 blur-[130px] rounded-full"></div>
             </div>
 
             {/* Video Player Modal */}
@@ -294,40 +301,31 @@ const CourseDetails = () => {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-10 bg-slate-900/90 backdrop-blur-xl"
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl"
                     >
                         <div className="absolute inset-0" onClick={() => setActiveVideo(null)}></div>
-                        <motion.div
-                            initial={{ scale: 0.95, y: 20 }}
-                            animate={{ scale: 1, y: 0 }}
-                            exit={{ scale: 0.95, y: 20 }}
-                            className="relative w-full max-w-5xl bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10"
-                        >
-                            {/* Modal Header */}
-                            <div className="absolute top-0 inset-x-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-center pointer-events-none">
-                                <h3 className="text-white font-black uppercase tracking-widest text-sm drop-shadow-md pointer-events-auto">
+                        <div className="relative w-full max-w-4xl bg-black rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10">
+                            <div className="absolute top-0 inset-x-0 p-6 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-center">
+                                <h3 className="text-white font-black italic tracking-widest uppercase text-sm">
                                     {activeVideo.Title}
                                 </h3>
                                 <button
                                     onClick={() => setActiveVideo(null)}
-                                    className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-colors pointer-events-auto"
+                                    className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-all"
                                 >
                                     <X size={20} />
                                 </button>
                             </div>
-
-                            {/* Player */}
-                            <div className="aspect-video w-full bg-black">
+                            <div className="aspect-video w-full">
                                 <ReactPlayer
-                                    url={`${API_URL}${activeVideo.FilePath}`}
+                                    url={`${API_URL}${activeVideo.FileURL}`}
                                     width="100%"
                                     height="100%"
                                     controls
                                     playing
-                                    config={{ file: { attributes: { controlsList: 'nodownload' } } }}
                                 />
                             </div>
-                        </motion.div>
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>

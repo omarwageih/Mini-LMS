@@ -12,17 +12,24 @@ const useAuthStore = create((set, get) => ({
         if (token && userStr && userStr !== 'undefined') {
             try {
                 const user = JSON.parse(userStr);
-                set({ user, token, isAuthenticated: true });
-            } catch {
-                set({ user: null, token: null, isAuthenticated: false });
+                // Simple structure validation
+                if (user && user.UserID && user.UserType) {
+                    set({ user, token, isAuthenticated: true });
+                } else {
+                    throw new Error('Invalid user structure');
+                }
+            } catch (err) {
+                console.warn("Auth initialization failed:", err);
+                get().logout();
             }
         }
     },
 
     // Login
-    login: (token, user) => {
+    login: (token, user, refreshToken) => {
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(user));
+        if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
         set({ user, token, isAuthenticated: true });
     },
 
@@ -30,6 +37,7 @@ const useAuthStore = create((set, get) => ({
     logout: () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        localStorage.removeItem('refreshToken');
         set({ user: null, token: null, isAuthenticated: false });
     },
 

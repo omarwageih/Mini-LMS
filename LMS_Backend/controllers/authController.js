@@ -1,8 +1,6 @@
 const { sql, getPool } = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { OAuth2Client } = require('google-auth-library');
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const { sendEmail } = require('../utils/emailService');
 const { logAudit, createNotification } = require('../utils/helpers');
 
@@ -13,6 +11,10 @@ const register = async (req, res) => {
 
         if (!fullName || !email || !password || !userType) {
             return res.status(400).json({ message: "All fields are required" });
+        }
+
+        if (userType !== 'Student') {
+            return res.status(403).json({ message: "Self-registration is only allowed for Students." });
         }
 
         const pool = await getPool();
@@ -128,13 +130,15 @@ const login = async (req, res) => {
             if (attempts >= MAX_ATTEMPTS) {
                 await pool.request()
                     .input('Email', sql.VarChar, email)
-                    .query(`UPDATE Users SET FailedLoginAttempts = ${attempts}, LockedUntil = DATEADD(MINUTE, ${LOCKOUT_MINUTES}, GETDATE()) WHERE Email = @Email`);
+                    .input('Attempts', sql.Int, attempts)
+                    .query(`UPDATE Users SET FailedLoginAttempts = @Attempts, LockedUntil = DATEADD(MINUTE, ${LOCKOUT_MINUTES}, GETDATE()) WHERE Email = @Email`);
                 await logAudit(user.UserID, 'ACCOUNT_LOCKED', `Locked after ${MAX_ATTEMPTS} failed attempts`, req.ip);
                 return res.status(423).json({ message: `Too many failed attempts. Account locked for ${LOCKOUT_MINUTES} minutes.` });
             } else {
                 await pool.request()
                     .input('Email', sql.VarChar, email)
-                    .query(`UPDATE Users SET FailedLoginAttempts = ${attempts} WHERE Email = @Email`);
+                    .input('Attempts', sql.Int, attempts)
+                    .query(`UPDATE Users SET FailedLoginAttempts = @Attempts WHERE Email = @Email`);
             }
 
             await logAudit(user.UserID, 'LOGIN_FAILED', `Attempt ${attempts}/${MAX_ATTEMPTS}`, req.ip);
@@ -160,7 +164,7 @@ const login = async (req, res) => {
 
         const refreshToken = jwt.sign(
             { id: user.UserID },
-            process.env.JWT_SECRET + '_refresh',
+            process.env.REFRESH_TOKEN_SECRET || (process.env.JWT_SECRET + '_refresh'),
             { expiresIn: "7d" }
         );
 
@@ -195,10 +199,23 @@ const updateProfilePicture = async (req, res) => {
         const profilePicPath = `/uploads/profiles/${req.file.filename}`;
         const pool = await getPool();
 
+        // Get old picture to delete it
+        const userResult = await pool.request()
+            .input('id', sql.Int, userID)
+            .query('SELECT ProfilePicture FROM Users WHERE UserID = @id');
+        
+        const oldPic = userResult.recordset[0]?.ProfilePicture;
+
         await pool.request()
             .input('pic', sql.VarChar, profilePicPath)
             .input('id', sql.Int, userID)
             .query('UPDATE Users SET ProfilePicture = @pic WHERE UserID = @id');
+
+        // Delete old file if it exists and isn't the same as the new one
+        if (oldPic && oldPic !== profilePicPath) {
+            const { deleteFile } = require('../utils/helpers');
+            await deleteFile(oldPic);
+        }
 
         res.json({ 
             message: "Profile picture updated", 
@@ -211,88 +228,6 @@ const updateProfilePicture = async (req, res) => {
     }
 };
 
-const googleLogin = async (req, res) => {
-    try {
-        const { credential } = req.body;
-        if (!credential) {
-            return res.status(400).json({ message: "Google credential is required" });
-        }
-
-        // Verify the Google token
-        const ticket = await googleClient.verifyIdToken({
-            idToken: credential,
-            audience: process.env.GOOGLE_CLIENT_ID
-        });
-
-        const payload = ticket.getPayload();
-        const { email, name, picture } = payload;
-
-        const pool = await getPool();
-
-        // Check if user already exists
-        const existing = await pool.request()
-            .input('email', sql.VarChar, email)
-            .query('SELECT * FROM Users WHERE Email = @email');
-
-        let user;
-
-        if (existing.recordset.length > 0) {
-            // User exists — log them in
-            user = existing.recordset[0];
-        } else {
-            // New user — create as Student by default
-            const hashedPassword = await bcrypt.hash(Math.random().toString(36), 10);
-
-            const userResult = await pool.request()
-                .input('fullName', sql.VarChar, name)
-                .input('email', sql.VarChar, email)
-                .input('password', sql.VarChar, hashedPassword)
-                .input('userType', sql.VarChar, 'Student')
-                .input('profilePic', sql.VarChar, picture || null)
-                .query(`
-                    INSERT INTO Users (FullName, Email, Password, UserType, ProfilePicture)
-                    OUTPUT INSERTED.*
-                    VALUES (@fullName, @email, @password, @userType, @profilePic)
-                `);
-
-            user = userResult.recordset[0];
-
-            // Insert into Students table
-            await pool.request()
-                .input('userID', sql.Int, user.UserID)
-                .query('INSERT INTO Students (UserID) VALUES (@userID)');
-        }
-
-        // Generate JWT
-        const token = jwt.sign(
-            {
-                id: user.UserID,
-                type: user.UserType,
-                name: user.FullName,
-                email: user.Email,
-                profilePicture: user.ProfilePicture
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: '1d' }
-        );
-
-        res.json({
-            message: "Google login success",
-            token,
-            user: {
-                UserID: user.UserID,
-                FullName: user.FullName,
-                Email: user.Email,
-                UserType: user.UserType,
-                ProfilePicture: user.ProfilePicture
-            }
-        });
-
-    } catch (err) {
-        console.error("Google Login Error:", err);
-        res.status(500).json({ message: "An internal server error occurred during Google login." });
-    }
-};
 
 const forgotPassword = async (req, res) => {
     try {
@@ -309,11 +244,15 @@ const forgotPassword = async (req, res) => {
             return res.json({ message: "If that email is in our system, a reset link has been sent." });
         }
 
-        const resetToken = jwt.sign(
-            { id: user.UserID, email: user.Email },
-            process.env.JWT_SECRET + user.Password,
-            { expiresIn: '15m' }
-        );
+        const crypto = require('crypto');
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+        await pool.request()
+            .input('Token', sql.VarChar, resetToken)
+            .input('Expiry', sql.DateTime, expires)
+            .input('UserID', sql.Int, user.UserID)
+            .query('UPDATE Users SET ResetPasswordToken = @Token, ResetPasswordExpires = @Expiry WHERE UserID = @UserID');
 
         const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}&id=${user.UserID}`;
 
@@ -350,13 +289,7 @@ const resetPassword = async (req, res) => {
             .query('SELECT * FROM Users WHERE UserID = @UserID');
 
         const user = result.recordset[0];
-        if (!user) {
-            return res.status(400).json({ message: "Invalid token or user." });
-        }
-
-        try {
-            jwt.verify(token, process.env.JWT_SECRET + user.Password);
-        } catch (jwtErr) {
+        if (!user || user.ResetPasswordToken !== token || new Date(user.ResetPasswordExpires) < new Date()) {
             return res.status(400).json({ message: "Invalid or expired reset token." });
         }
 
@@ -365,7 +298,7 @@ const resetPassword = async (req, res) => {
         await pool.request()
             .input('Password', sql.VarChar, hashedPassword)
             .input('UserID', sql.Int, id)
-            .query('UPDATE Users SET Password = @Password WHERE UserID = @UserID');
+            .query('UPDATE Users SET Password = @Password, ResetPasswordToken = NULL, ResetPasswordExpires = NULL WHERE UserID = @UserID');
 
         res.json({ message: "Password has been successfully reset." });
 
@@ -380,7 +313,7 @@ const refreshAccessToken = async (req, res) => {
         const { refreshToken } = req.body;
         if (!refreshToken) return res.status(400).json({ message: "Refresh token required" });
 
-        const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET + '_refresh');
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET || (process.env.JWT_SECRET + '_refresh'));
 
         const pool = await getPool();
         const result = await pool.request()
@@ -403,4 +336,4 @@ const refreshAccessToken = async (req, res) => {
     }
 };
 
-module.exports = { register, login, updateProfilePicture, googleLogin, forgotPassword, resetPassword, refreshAccessToken };
+module.exports = { register, login, updateProfilePicture, forgotPassword, resetPassword, refreshAccessToken };

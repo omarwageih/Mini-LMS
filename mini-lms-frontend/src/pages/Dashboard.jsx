@@ -7,7 +7,7 @@ import {
   ClipboardList, Target, Users, UserPlus
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { apiGet } from '../api';
+import { apiGet } from '../services/api';
 
 const Dashboard = () => {
   const [time, setTime] = useState(new Date());

@@ -45,16 +45,17 @@ const requireRole = (...roles) => {
 const requireCourseAssistant = async (req, res, next) => {
     try {
         const assistantID = req.user.id;
-        const courseID = req.params.courseId || req.body.courseId || req.body.CourseID;
+        const courseId = req.params.courseId || req.body.courseId;
 
-        if (!courseID) {
+        if (!courseId) {
+            console.log("requireCourseAssistant: Course ID missing for URL:", req.originalUrl);
             return res.status(400).json({ message: "Course ID is required." });
         }
 
         const pool = await getPool();
         const result = await pool.request()
             .input('AssistantID', sql.Int, assistantID)
-            .input('CourseID', sql.Int, courseID)
+            .input('CourseID', sql.Int, courseId)
             .query('SELECT * FROM Course_Assistants WHERE AssistantID = @AssistantID AND CourseID = @CourseID');
 
         if (result.recordset.length === 0) {
@@ -67,4 +68,87 @@ const requireCourseAssistant = async (req, res, next) => {
     }
 };
 
-module.exports = { verifyToken, requireRole, requireCourseAssistant };
+// ================= STUDENT ENROLLMENT AUTHORIZATION =================
+// Checks if the student is enrolled in the course
+const requireEnrollment = async (req, res, next) => {
+    try {
+        const studentId = req.user.id;
+        // Check params or body for courseId or assignmentId
+        let courseId = req.params.courseId || (req.body && req.body.courseId);
+        const assignmentId = req.body && (req.body.assignmentId || req.body.assignmentID);
+
+        const pool = await getPool();
+
+        // If assignmentId is provided but not courseId, fetch courseId from Assignment table
+        if (!courseId && assignmentId) {
+            const assignResult = await pool.request()
+                .input('id', sql.Int, assignmentId)
+                .query('SELECT CourseID FROM Assignment WHERE AssignmentID = @id');
+            
+            if (assignResult.recordset.length > 0) {
+                courseId = assignResult.recordset[0].CourseID;
+            }
+        }
+
+        if (!courseId) {
+            console.log("requireEnrollment: Course ID missing for URL:", req.originalUrl);
+            return res.status(400).json({ message: "Course ID or Assignment ID is required for enrollment check." });
+        }
+
+        const result = await pool.request()
+            .input('studentId', sql.Int, studentId)
+            .input('courseId', sql.Int, courseId)
+            .query('SELECT 1 FROM Enrollment WHERE StudentID = @studentId AND CourseID = @courseId');
+
+        if (result.recordset.length === 0) {
+            return res.status(403).json({ message: "Access denied. You are not enrolled in this course." });
+        }
+
+        next();
+    } catch (err) {
+        res.status(500).json({ message: "Authorization error", error: err.message });
+    }
+};
+
+// ================= INSTRUCTOR COURSE OWNERSHIP AUTHORIZATION =================
+// Checks if the instructor owns the course
+const requireCourseOwner = async (req, res, next) => {
+    try {
+        const instructorID = req.user.id;
+        let courseId = req.params.courseId || req.body.courseId;
+        const pool = await getPool();
+
+        if (!courseId) {
+            // Check for weekId in body (JSON or multipart/form-data)
+            const weekId = req.body.weekId || (req.body.get && req.body.get('weekId'));
+            if (weekId) {
+                const weekRes = await pool.request()
+                    .input('wId', sql.Int, weekId)
+                    .query('SELECT CourseID FROM StudyWeek WHERE WeekID = @wId');
+                if (weekRes.recordset.length > 0) {
+                    courseId = weekRes.recordset[0].CourseID;
+                }
+            }
+        }
+
+        if (!courseId) {
+            console.log("requireCourseOwner: Course ID missing for URL:", req.originalUrl, "Body keys:", Object.keys(req.body));
+            return res.status(400).json({ message: "Course ID is required." });
+        }
+        const result = await pool.request()
+            .input('InstructorID', sql.Int, instructorID)
+            .input('CourseID', sql.Int, courseId)
+            .query('SELECT 1 FROM Course WHERE CourseID = @CourseID AND InstructorID = @InstructorID');
+
+        if (result.recordset.length === 0) {
+            return res.status(403).json({ message: "Access denied. You do not own this course." });
+        }
+
+        next();
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+module.exports = { verifyToken, requireRole, requireCourseAssistant, requireCourseOwner, requireEnrollment };
+

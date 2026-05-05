@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Users, UserPlus, Trash2, BookOpen, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { apiGet, apiPost, apiDelete } from '../../api';
+import { apiGet, apiPost, apiDelete } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 
 const ManageStudents = () => {
@@ -9,7 +9,7 @@ const ManageStudents = () => {
     const [students, setStudents] = useState([]);
     const [courses, setCourses] = useState([]);
     const [form, setForm] = useState({ fullName: '', email: '', password: '' });
-    const [enrollForm, setEnrollForm] = useState({ studentID: '', courseID: '' });
+    const [enrollForm, setEnrollForm] = useState({ studentId: '', courseId: '' });
     const [loading, setLoading] = useState(false);
 
     useEffect(() => { loadData(); }, []);
@@ -33,7 +33,7 @@ const ManageStudents = () => {
             showToast('Student added successfully!', 'success');
             setForm({ fullName: '', email: '', password: '' });
             loadData();
-        } catch (err) { showToast(err.message, 'error'); }
+        } catch (err) { showToast(err.response?.data?.message || err.message, 'error'); }
         setLoading(false);
     };
 
@@ -51,7 +51,7 @@ const ManageStudents = () => {
         try {
             await apiPost('/instructor/students/enroll', enrollForm);
             showToast('Student enrolled successfully!', 'success');
-            setEnrollForm({ studentID: '', courseID: '' });
+            setEnrollForm({ studentId: '', courseId: '' });
         } catch (err) { showToast(err.message, 'error'); }
     };
 
@@ -104,8 +104,9 @@ const ManageStudents = () => {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">System Password</label>
-                                <input type="password" placeholder="••••••••" required value={form.password} onChange={e => setForm({...form, password: e.target.value})}
+                                <input type="password" placeholder="Min 8 chars, 1 uppercase, 1 number" required minLength={8} value={form.password} onChange={e => setForm({...form, password: e.target.value})}
                                     className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-5 rounded-[1.5rem] outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all text-sm font-bold text-slate-800 dark:text-white" />
+                                <p className="text-[9px] text-slate-400 ml-2">Must be 8+ chars with at least 1 uppercase letter and 1 number</p>
                             </div>
                             <button type="submit" disabled={loading} className="w-full py-5 bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 text-white font-black rounded-2xl shadow-xl shadow-blue-500/20 hover:shadow-blue-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all text-[11px] tracking-[0.3em] uppercase mt-4">
                                 {loading ? 'Processing Registry...' : 'Register Student'}
@@ -132,7 +133,7 @@ const ManageStudents = () => {
                         <form onSubmit={handleEnroll} className="space-y-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Target Student</label>
-                                <select value={enrollForm.studentID} onChange={e => setEnrollForm({...enrollForm, studentID: e.target.value})} required
+                                <select value={enrollForm.studentId} onChange={e => setEnrollForm({...enrollForm, studentId: e.target.value})} required
                                     className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-5 rounded-[1.5rem] outline-none focus:border-cyan-500 transition-all text-sm font-bold text-slate-800 dark:text-white appearance-none cursor-pointer">
                                     <option value="">Select Candidate</option>
                                     {students.map(s => <option key={s.StudentID} value={s.StudentID}>{s.FullName}</option>)}
@@ -140,7 +141,7 @@ const ManageStudents = () => {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Academic Course</label>
-                                <select value={enrollForm.courseID} onChange={e => setEnrollForm({...enrollForm, courseID: e.target.value})} required
+                                <select value={enrollForm.courseId} onChange={e => setEnrollForm({...enrollForm, courseId: e.target.value})} required
                                     className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-5 rounded-[1.5rem] outline-none focus:border-cyan-500 transition-all text-sm font-bold text-slate-800 dark:text-white appearance-none cursor-pointer">
                                     <option value="">Select Module</option>
                                     {courses.map(c => <option key={c.CourseID} value={c.CourseID}>{c.CourseName}</option>)}

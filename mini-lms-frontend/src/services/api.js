@@ -33,41 +33,57 @@ api.interceptors.response.use(
     async (error) => {
         const originalRequest = error.config;
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
-            const refreshToken = localStorage.getItem('refreshToken');
-            
-            if (!refreshToken) {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                localStorage.removeItem('refreshToken');
-                window.location.href = '/login';
+        if (!error.response) {
+            console.error("API Network Error:", error.message);
+            return Promise.reject(error);
+        }
+
+        // Handle 401 Unauthorized
+        if (error.response.status === 401 && !originalRequest._retry) {
+            const isAuthRequest = originalRequest.url.includes('/auth/refresh-token') || 
+                                 originalRequest.url.includes('/auth/login');
+
+            if (isAuthRequest) {
                 return Promise.reject(error);
             }
 
             if (isRefreshing) {
+                console.log("Token refresh in progress, queuing request:", originalRequest.url);
                 return new Promise((resolve, reject) => {
                     failedQueue.push({ resolve, reject });
                 }).then(token => {
                     originalRequest.headers.Authorization = `Bearer ${token}`;
                     return api(originalRequest);
-                });
+                }).catch(err => Promise.reject(err));
             }
 
             originalRequest._retry = true;
             isRefreshing = true;
 
+            const refreshToken = localStorage.getItem('refreshToken');
+            if (!refreshToken) {
+                console.warn("No refresh token found, redirecting to login");
+                localStorage.clear();
+                window.location.href = '/login';
+                return Promise.reject(error);
+            }
+
             try {
-                const { data } = await api.post('/auth/refresh-token', { refreshToken });
-                localStorage.setItem('token', data.token);
-                api.defaults.headers.common.Authorization = `Bearer ${data.token}`;
-                processQueue(null, data.token);
-                originalRequest.headers.Authorization = `Bearer ${data.token}`;
+                console.log("Attempting token refresh...");
+                const { data } = await axios.post(`${API_URL}/api/auth/refresh-token`, { refreshToken });
+                const newToken = data.token;
+                
+                localStorage.setItem('token', newToken);
+                api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
+                originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                
+                console.log("Token refreshed successfully.");
+                processQueue(null, newToken);
                 return api(originalRequest);
             } catch (refreshErr) {
+                console.error("Token refresh failed:", refreshErr.message);
                 processQueue(refreshErr, null);
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                localStorage.removeItem('refreshToken');
+                localStorage.clear();
                 window.location.href = '/login';
                 return Promise.reject(refreshErr);
             } finally {
@@ -99,6 +115,7 @@ export const dashboardAPI = {
 // ===== Student =====
 export const studentAPI = {
     getDashboard: () => api.get('/student/dashboard'),
+    updateProfile: (data) => api.put('/student/profile', data),
     getCourses: () => api.get('/student/courses'),
     getCourseContent: (courseId) => api.get(`/student/courses/${courseId}/content`),
     getAssignments: () => api.get('/student/assignments'),
@@ -108,6 +125,7 @@ export const studentAPI = {
     getGrades: () => api.get('/student/grades'),
     getCourseMaterials: (courseId) => api.get(`/student/courses/${courseId}/materials`),
     getCourseAnnouncements: (courseId) => api.get(`/student/courses/${courseId}/announcements`),
+    getCourseParticipants: (courseId) => api.get(`/student/courses/${courseId}/participants`),
     getCalendarEvents: () => api.get('/student/calendar'),
     // Discussions
     getDiscussionPosts: (courseId) => api.get(`/student/discussions/${courseId}`),
@@ -162,3 +180,11 @@ export const assistantAPI = {
 };
 
 export default api;
+
+// ===== Generic helpers used by older page imports =====
+// These allow pages that call apiGet('/instructor/...') to work
+// without needing to know which named API group to use.
+export const apiGet    = (url, params) => api.get(url, { params }).then(r => r.data);
+export const apiPost   = (url, data, config) => api.post(url, data, config).then(r => r.data);
+export const apiPut    = (url, data) => api.put(url, data).then(r => r.data);
+export const apiDelete = (url) => api.delete(url).then(r => r.data);
