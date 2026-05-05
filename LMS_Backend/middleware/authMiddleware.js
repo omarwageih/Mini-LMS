@@ -118,13 +118,13 @@ const requireCourseOwner = async (req, res, next) => {
         let courseId = req.params.courseId || req.body.courseId;
         const pool = await getPool();
 
+        // If courseId is not direct, try to derive from weekId
         if (!courseId) {
-            // Check for weekId in body (JSON or multipart/form-data)
-            const weekId = req.body.weekId || (req.body.get && req.body.get('weekId'));
+            const weekId = req.body.weekId;
             if (weekId) {
                 const weekRes = await pool.request()
                     .input('wId', sql.Int, weekId)
-                    .query('SELECT CourseID FROM StudyWeek WHERE WeekID = @wId');
+                    .query('SELECT CourseID FROM StudyWeek WHERE Week_ID = @wId');
                 if (weekRes.recordset.length > 0) {
                     courseId = weekRes.recordset[0].CourseID;
                 }
@@ -132,21 +132,24 @@ const requireCourseOwner = async (req, res, next) => {
         }
 
         if (!courseId) {
-            console.log("requireCourseOwner: Course ID missing for URL:", req.originalUrl, "Body keys:", Object.keys(req.body));
-            return res.status(400).json({ message: "Course ID is required." });
+            console.log(`[Auth] Course ID missing for ${req.method} ${req.originalUrl}`);
+            return res.status(400).json({ message: "Course ID is required for authorization." });
         }
+
         const result = await pool.request()
             .input('InstructorID', sql.Int, instructorID)
             .input('CourseID', sql.Int, courseId)
             .query('SELECT 1 FROM Course WHERE CourseID = @CourseID AND InstructorID = @InstructorID');
 
         if (result.recordset.length === 0) {
+            console.warn(`[Auth] Unauthorized access attempt by Instructor ${instructorID} to Course ${courseId}`);
             return res.status(403).json({ message: "Access denied. You do not own this course." });
         }
 
         next();
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("[Auth Error]", err);
+        res.status(500).json({ error: "Internal authorization error" });
     }
 };
 

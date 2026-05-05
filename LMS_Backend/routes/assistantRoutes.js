@@ -1,34 +1,26 @@
 const express = require('express');
 const router = express.Router();
+const { materialsUpload } = require('../middleware/upload');
 const { verifyToken, requireRole, requireCourseAssistant } = require('../middleware/authMiddleware');
 const { validate, createAssignmentSchema, assistantGradeSubmissionSchema } = require('../middleware/validation');
-const multer = require('multer');
-const path = require('path');
 const {
-    getAssignedCourses,
-    getCourseDetails,
-    createAssignment,
-    getSubmissions,
-    gradeSubmission,
-    getCourseMaterials,
-    uploadCourseMaterial,
-    deleteCourseMaterial
-} = require('../controllers/assistantController');
-const { getDiscussionPosts, createDiscussionPost, getDiscussionReplies, createDiscussionReply } = require('../controllers/studentController');
+    getMyCourses, getCourseContent, getCourseMaterials, uploadCourseMaterial, deleteCourseMaterial,
+    getCourseParticipants, getCourseGrades,
+    getCourseAttendance, markAttendance, getCourseQuizzes
+} = require('../controllers/courseController');
 
-// Materials upload config
-const materialsStorage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/materials/'),
-    filename: (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname))
-});
-const materialsUpload = multer({ storage: materialsStorage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
+const {
+    createAssignment, getSubmissions, gradeSubmission
+} = require('../controllers/assignmentController');
+
+const { getDiscussionPosts, createDiscussionPost, getDiscussionReplies, createDiscussionReply } = require('../controllers/discussionController');
 
 // All routes require Assistant role
 router.use(verifyToken, requireRole('Assistant'));
 
 // ===== Assigned Courses =====
-router.get('/courses', getAssignedCourses);
-router.get('/courses/:id/details', getCourseDetails);
+router.get('/courses', getMyCourses);
+router.get('/courses/:id/details', getCourseContent);
 
 // ===== Assignments (with course authorization) =====
 router.post('/assignments', requireCourseAssistant, validate(createAssignmentSchema), createAssignment);
@@ -41,6 +33,11 @@ router.post('/submissions/grade', validate(assistantGradeSubmissionSchema), grad
 router.get('/courses/:courseId/materials', requireCourseAssistant, getCourseMaterials);
 router.post('/courses/materials', materialsUpload.single('file'), requireCourseAssistant, uploadCourseMaterial);
 router.delete('/courses/materials/:id', deleteCourseMaterial); // Auth check inside controller
+router.get('/courses/:courseId/participants', requireCourseAssistant, getCourseParticipants);
+router.get('/courses/:courseId/grades', requireCourseAssistant, getCourseGrades);
+router.get('/courses/:courseId/attendance', requireCourseAssistant, getCourseAttendance);
+router.post('/attendance/mark', markAttendance);
+router.get('/courses/:courseId/quizzes', requireCourseAssistant, getCourseQuizzes);
 
 // ===== Discussions =====
 router.get('/discussions/:courseId', requireCourseAssistant, getDiscussionPosts);

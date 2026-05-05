@@ -3,9 +3,16 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, FileText, Video, ClipboardList, MessageSquare,
-    ChevronDown, ChevronRight, Play, X, Calendar, Plus, Upload, Loader2, CheckCircle2, AlertCircle
+    ChevronDown, ChevronRight, Play, X, Calendar, Plus, Upload, Loader2, CheckCircle2, AlertCircle,
+    Users, Award, Target, BookOpen, Trash2
 } from 'lucide-react';
-import { apiGet, apiPost, apiDelete } from '../../services/api';
+import { apiGet, apiPost, apiDelete, instructorAPI } from '../../services/api';
+import ReactPlayer from 'react-player';
+import ParticipantsTab from '../../components/common/ParticipantsTab';
+import GradesTab from '../../components/common/GradesTab';
+import ActivitiesTab from '../../components/common/ActivitiesTab';
+import AttendanceTab from '../../components/common/AttendanceTab';
+import CompetenciesTab from '../course-tabs/CompetenciesTab';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -15,6 +22,8 @@ const InstructorCourseDetails = () => {
     const [courseData, setCourseData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [expandedWeeks, setExpandedWeeks] = useState({});
+    const [activeTab, setActiveTab] = useState('course'); // 'course' | 'participants' | 'grades' | 'activities' | 'competencies'
+    const [activeVideo, setActiveVideo] = useState(null);
     
     // UI State for forms
     const [activeForm, setActiveForm] = useState({ type: null, weekId: null }); // type: 'material' | 'lecture'
@@ -23,7 +32,7 @@ const InstructorCourseDetails = () => {
     const [uploading, setUploading] = useState(false);
     const [msg, setMsg] = useState({ text: '', type: '' });
     
-    const [materialForm, setMaterialForm] = useState({ title: '', description: '', file: null, fileType: 'document' });
+    const [materialForm, setMaterialForm] = useState({ title: '', description: '', file: null, fileType: 'document', url: '' });
     const [lectureForm, setLectureForm] = useState({ title: '', date: '', startTime: '', endTime: '' });
 
     const loadData = async () => {
@@ -31,12 +40,12 @@ const InstructorCourseDetails = () => {
             const contentData = await apiGet(`/instructor/courses/${id}/content`);
             setCourseData(contentData);
             
-            // Expand all weeks by default
-            const initialExpanded = {};
-            if (contentData.weeks) {
+            // Expand all weeks by default if first load
+            if (Object.keys(expandedWeeks).length === 0 && contentData.weeks) {
+                const initialExpanded = {};
                 contentData.weeks.forEach(w => { initialExpanded[w.WeekID] = true });
+                setExpandedWeeks(initialExpanded);
             }
-            setExpandedWeeks(initialExpanded);
         } catch (err) {
             console.error(err);
         }
@@ -65,11 +74,12 @@ const InstructorCourseDetails = () => {
             formData.append('description', materialForm.description);
             formData.append('fileType', materialForm.fileType);
             if (materialForm.file) formData.append('file', materialForm.file);
+            if (materialForm.url) formData.append('url', materialForm.url);
 
-            await apiPost('/instructor/courses/materials', formData);
+            await apiPost('/instructor/materials', formData);
             
             setMsg({ text: 'Resource deployed successfully!', type: 'success' });
-            setMaterialForm({ title: '', description: '', file: null, fileType: 'document' });
+            setMaterialForm({ title: '', description: '', file: null, fileType: 'document', url: '' });
             setActiveForm({ type: null, weekId: null });
             loadData();
             setTimeout(() => setMsg({ text: '', type: '' }), 3000);
@@ -111,8 +121,32 @@ const InstructorCourseDetails = () => {
     const handleDeleteMaterial = async (mId) => {
         if (!window.confirm("Are you sure you want to decommission this resource?")) return;
         try {
-            await apiDelete(`/instructor/courses/materials/${mId}`);
+            await apiDelete(`/instructor/materials/${mId}`);
             setMsg({ text: 'Resource removed.', type: 'success' });
+            loadData();
+            setTimeout(() => setMsg({ text: '', type: '' }), 3000);
+        } catch (err) {
+            setMsg({ text: err.response?.data?.message || err.message, type: 'error' });
+        }
+    };
+
+    const handleDeleteLecture = async (lId) => {
+        if (!window.confirm("Remove this lecture session?")) return;
+        try {
+            await apiDelete(`/instructor/courses/lectures/${lId}`);
+            setMsg({ text: 'Lecture removed.', type: 'success' });
+            loadData();
+            setTimeout(() => setMsg({ text: '', type: '' }), 3000);
+        } catch (err) {
+            setMsg({ text: err.response?.data?.message || err.message, type: 'error' });
+        }
+    };
+
+    const handleDeleteWeek = async (wId) => {
+        if (!window.confirm("WARNING: This will delete the entire week and all its materials. Continue?")) return;
+        try {
+            await apiDelete(`/instructor/weeks/${wId}`);
+            setMsg({ text: 'Week decommissioned.', type: 'success' });
             loadData();
             setTimeout(() => setMsg({ text: '', type: '' }), 3000);
         } catch (err) {
@@ -122,8 +156,11 @@ const InstructorCourseDetails = () => {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-white flex items-center justify-center">
-                <p className="text-slate-500 font-medium">Loading course workspace...</p>
+            <div className="min-h-screen bg-white dark:bg-[#020617] flex items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-slate-500 dark:text-slate-400 font-black uppercase tracking-[0.2em] text-[10px] italic">Accessing Terminal...</p>
+                </div>
             </div>
         );
     }
@@ -138,218 +175,401 @@ const InstructorCourseDetails = () => {
 
     const { course, weeks, lectures, assignments } = courseData;
 
+    const renderTabContent = () => {
+        switch (activeTab) {
+            case 'course':
+                return (
+                    <div className="space-y-4 pt-4">
+                        {/* General Section */}
+                        <div className="glass-card overflow-hidden shadow-xl shadow-blue-500/5">
+                            <div className="px-6 py-5 flex items-center justify-between bg-slate-50/50 dark:bg-white/5">
+                                <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-800 dark:text-white italic">General</h2>
+                                <button 
+                                    onClick={() => setExpandedWeeks({})}
+                                    className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    Collapse all
+                                </button>
+                            </div>
+                            <div className="px-6 py-5 border-t border-slate-100 dark:border-white/5 space-y-3">
+                                <Link to={`/discussions/${course.CourseID}`} className="flex items-center gap-4 text-blue-600 dark:text-blue-400 hover:bg-blue-600/5 p-4 rounded-2xl transition-all border border-transparent hover:border-blue-500/20 group">
+                                    <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl group-hover:scale-110 transition-transform">
+                                        <MessageSquare size={22} className="text-blue-600 dark:text-blue-400" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="font-black text-sm uppercase tracking-wider italic">Course Announcements & Discussions</span>
+                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">Interaction Hub</span>
+                                    </div>
+                                </Link>
+                            </div>
+                        </div>
+
+                        {/* Weeks Accordions */}
+                        {weeks.map((week) => {
+                            const isExpanded = expandedWeeks[week.WeekID];
+                            let dateString = `Week ${week.WeekNumber}`;
+                            if (week.StartDate && week.EndDate) {
+                                const start = new Date(week.StartDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
+                                const end = new Date(week.EndDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
+                                dateString = `${start} - ${end}`;
+                            } else if (week.Title) {
+                                dateString = week.Title
+                                    .replace(/â€“/g, '–')
+                                    .replace(/Â€“/g, '–')
+                                    .replace(/â€™/g, "'")
+                                    .replace(/Â/g, '');
+                            }
+
+                            return (
+                                <div key={week.WeekID} className="glass-card overflow-hidden shadow-xl shadow-blue-500/5 group/week">
+                                    <div 
+                                        onClick={() => toggleWeek(week.WeekID)}
+                                        className="w-full px-6 py-5 flex items-center justify-between bg-white dark:bg-transparent hover:bg-slate-50 dark:hover:bg-white/5 transition-all cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isExpanded ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-100 dark:bg-white/5 text-slate-400'}`}>
+                                                {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                                            </div>
+                                            <h2 className="text-lg font-black tracking-tight text-slate-800 dark:text-white italic uppercase">{dateString}</h2>
+                                        </div>
+                                        <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
+                                            <button 
+                                                onClick={() => setActiveForm({ type: 'material', weekId: week.WeekID })}
+                                                className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 px-4 py-2 rounded-xl flex items-center gap-2 transition-all border border-emerald-200/50 dark:border-emerald-500/20"
+                                            >
+                                                <Plus size={14} /> PDF / Video
+                                            </button>
+                                            <button 
+                                                onClick={() => setActiveForm({ type: 'lecture', weekId: week.WeekID })}
+                                                className="text-[10px] font-black uppercase tracking-widest text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-500/10 hover:bg-orange-100 dark:hover:bg-orange-500/20 px-4 py-2 rounded-xl flex items-center gap-2 transition-all border border-orange-200/50 dark:border-orange-500/20"
+                                            >
+                                                <Plus size={14} /> Lecture
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeleteWeek(week.WeekID)}
+                                                className="p-2 text-slate-300 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <AnimatePresence>
+                                        {isExpanded && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <div className="px-6 py-6 border-t border-slate-100 dark:border-white/5 space-y-4 ml-12">
+                                                    {/* Inline Forms omitted for brevity but they should be here if needed */}
+                                                    {/* Re-including forms from previous version */}
+                                                    {activeForm.weekId === week.WeekID && (
+                                                        <div className="mb-6 p-6 border border-slate-200 dark:border-white/10 rounded-2xl bg-slate-50 dark:bg-white/5 shadow-inner">
+                                                            <div className="flex justify-between items-center mb-6">
+                                                                <h4 className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] italic">
+                                                                    {activeForm.type === 'material' ? 'New Asset Deployment' : 'Session Orchestration'}
+                                                                </h4>
+                                                                <button onClick={() => setActiveForm({ type: null, weekId: null })} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm text-slate-400 hover:text-red-500 transition-colors"><X size={14}/></button>
+                                                            </div>
+
+                                                            {activeForm.type === 'material' ? (
+                                                                <form onSubmit={(e) => handleUploadMaterial(e, week.WeekID)} className="space-y-4">
+                                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                        <div className="space-y-1">
+                                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Title</label>
+                                                                            <input type="text" required value={materialForm.title} onChange={e => setMaterialForm({...materialForm, title: e.target.value})} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Enter resource title..." />
+                                                                        </div>
+                                                                        <div className="space-y-1">
+                                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Type</label>
+                                                                            <select value={materialForm.fileType} onChange={e => setMaterialForm({...materialForm, fileType: e.target.value})} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                                                                                <option value="document">PDF Document</option>
+                                                                                <option value="video">Video Stream</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="space-y-1">
+                                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                                                                            {materialForm.fileType === 'video' ? 'Asset File (Optional if URL provided)' : 'Asset File'}
+                                                                        </label>
+                                                                        <div className="relative group/upload">
+                                                                            <input 
+                                                                                type="file" 
+                                                                                required={materialForm.fileType !== 'video' || !materialForm.url} 
+                                                                                onChange={e => setMaterialForm({...materialForm, file: e.target.files[0]})} 
+                                                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                                                                            />
+                                                                            <div className="w-full border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl p-8 flex flex-col items-center justify-center gap-2 group-hover/upload:border-blue-400 transition-colors">
+                                                                                <Upload size={24} className="text-slate-300 dark:text-slate-600" />
+                                                                                <span className="text-xs font-bold text-slate-500">{materialForm.file ? materialForm.file.name : 'Drop file here or click to browse'}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {materialForm.fileType === 'video' && (
+                                                                        <div className="space-y-1">
+                                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Or Video URL (YouTube, Vimeo, etc.)</label>
+                                                                            <input 
+                                                                                type="url" 
+                                                                                value={materialForm.url} 
+                                                                                onChange={e => setMaterialForm({...materialForm, url: e.target.value})} 
+                                                                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all" 
+                                                                                placeholder="https://www.youtube.com/watch?v=..." 
+                                                                            />
+                                                                        </div>
+                                                                    )}
+
+                                                                    <div className="flex justify-end pt-2">
+                                                                        <button type="submit" disabled={uploading} className="bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase tracking-widest py-3 px-8 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-blue-500/20">
+                                                                            {uploading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                                                                            Execute Deployment
+                                                                        </button>
+                                                                    </div>
+                                                                </form>
+                                                            ) : (
+                                                                <form onSubmit={(e) => handleAddLecture(e, week.WeekID)} className="space-y-4">
+                                                                    <div className="space-y-1">
+                                                                        <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Session Title</label>
+                                                                        <input type="text" required value={lectureForm.title} onChange={e => setLectureForm({...lectureForm, title: e.target.value})} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="e.g. System Architecture Deep-Dive" />
+                                                                    </div>
+                                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                                        <div className="space-y-1">
+                                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
+                                                                            <input type="date" required value={lectureForm.date} onChange={e => setLectureForm({...lectureForm, date: e.target.value})} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                                                                        </div>
+                                                                        <div className="space-y-1">
+                                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Start Time</label>
+                                                                            <input type="time" value={lectureForm.startTime} onChange={e => setLectureForm({...lectureForm, startTime: e.target.value})} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                                                                        </div>
+                                                                        <div className="space-y-1">
+                                                                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">End Time</label>
+                                                                            <input type="time" value={lectureForm.endTime} onChange={e => setLectureForm({...lectureForm, endTime: e.target.value})} className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex justify-end pt-2">
+                                                                        <button type="submit" disabled={uploading} className="bg-orange-600 hover:bg-orange-700 text-white text-[10px] font-black uppercase tracking-widest py-3 px-8 rounded-xl flex items-center gap-2 transition-all shadow-lg shadow-orange-500/20">
+                                                                            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Calendar size={14} />}
+                                                                            Confirm Schedule
+                                                                        </button>
+                                                                    </div>
+                                                                </form>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Materials */}
+                                                    {week.materials && week.materials.map(mat => {
+                                                        const isVideo = mat.Type === 'Video' || (mat.FileURL && mat.FileURL.match(/\.(mp4|webm|ogg)$/i)) || (mat.FileURL && (mat.FileURL.includes('youtube.com') || mat.FileURL.includes('youtu.be')));
+                                                        const cleanTitle = mat.Title
+                                                            .replace(/â€“/g, '–')
+                                                            .replace(/Â€“/g, '–')
+                                                            .replace(/â€™/g, "'")
+                                                            .replace(/Â/g, '');
+
+                                                        const handleMaterialClick = () => {
+                                                            if (isVideo) {
+                                                                setActiveVideo(mat);
+                                                            } else if (mat.FileURL) {
+                                                                const url = mat.FileURL.startsWith('http') ? mat.FileURL : `${API_URL}${mat.FileURL}`;
+                                                                window.open(url, '_blank');
+                                                            } else {
+                                                                setMsg({ text: 'This resource has no valid deployment link.', type: 'error' });
+                                                                setTimeout(() => setMsg({ text: '', type: '' }), 3000);
+                                                            }
+                                                        };
+
+                                                        return (
+                                                            <div 
+                                                                key={`mat-${mat.MaterialID}`} 
+                                                                onClick={handleMaterialClick}
+                                                                className={`flex items-center gap-4 p-4 rounded-2xl transition-all border border-transparent group relative overflow-hidden shadow-sm cursor-pointer ${
+                                                                    !mat.FileURL && !isVideo 
+                                                                        ? 'bg-slate-100 dark:bg-white/5 opacity-50 cursor-not-allowed' 
+                                                                        : 'bg-slate-50 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 hover:border-blue-500/20'
+                                                                }`}
+                                                            >
+                                                                <div className={`p-3 rounded-xl ${isVideo ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-blue-100 dark:bg-blue-900/30'}`}>
+                                                                    {isVideo ? <Video size={20} className="text-emerald-600 dark:text-emerald-400" /> : <FileText size={20} className="text-blue-600 dark:text-blue-400" />}
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors italic">{cleanTitle}</span>
+                                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{isVideo ? 'Video Resource' : 'Document Archive'}</span>
+                                                                </div>
+                                                                
+                                                                <button 
+                                                                    onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(mat.MaterialID); }} 
+                                                                    className="ml-auto p-2 text-slate-300 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl"
+                                                                >
+                                                                    <X size={18} />
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
+
+                                                    {/* Lectures */}
+                                                    {week.lectures && week.lectures.map(lec => (
+                                                        <div key={`lec-${lec.LectureID}`} className="flex items-center gap-4 p-4 rounded-2xl bg-white/50 dark:bg-white/5 border border-slate-100 dark:border-white/5 group hover:border-orange-500/20 transition-all">
+                                                            <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-xl">
+                                                                <Calendar size={20} className="text-orange-600" />
+                                                            </div>
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white italic">{lec.Title}</span>
+                                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                                                                    {lec.Date ? new Date(lec.Date).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }) : ''} 
+                                                                    {lec.Start_Time ? ` at ${lec.Start_Time}` : ''}
+                                                                </span>
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => handleDeleteLecture(lec.LectureID)}
+                                                                className="ml-auto p-2 text-slate-300 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl"
+                                                            >
+                                                                <X size={18} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+
+                                                    {(!week.materials?.length && !week.lectures?.length) && (
+                                                        <p className="text-[10px] text-slate-400 dark:text-slate-500 italic uppercase font-black tracking-widest ml-2">Terminal shows no active assets for this sector.</p>
+                                                    )}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            case 'participants':
+                return <ParticipantsTab courseId={id} role="instructor" />;
+            case 'attendance':
+                return <AttendanceTab courseId={id} role="instructor" />;
+            case 'grades':
+                return <GradesTab courseId={id} role="instructor" />;
+            case 'activities':
+                return <ActivitiesTab assignments={courseData?.assignments} courseId={id} role="instructor" onRefresh={loadData} />;
+            case 'competencies':
+                return <CompetenciesTab />;
+            default:
+                return null;
+        }
+    };
+
+    const tabs = [
+        { id: 'course', label: 'Course', icon: <BookOpen size={16} /> },
+        { id: 'participants', label: 'Participants', icon: <Users size={16} /> },
+        { id: 'grades', label: 'Grades', icon: <Award size={16} /> },
+        { id: 'attendance', label: 'Attendance', icon: <Calendar size={16} /> },
+        { id: 'activities', label: 'Activities', icon: <ClipboardList size={16} /> },
+        { id: 'competencies', label: 'Competencies', icon: <Target size={16} /> }
+    ];
+
     return (
-        <div className="min-h-screen bg-white text-slate-900 pb-20">
+        <div className="min-h-screen bg-slate-50 dark:bg-[#020617] text-slate-900 dark:text-white pb-20 transition-colors duration-500">
             {/* Top Navigation Bar area */}
-            <div className="border-b border-slate-200 px-6 py-4 bg-white relative z-10">
-                <button
-                    onClick={() => navigate('/instructor/courses')}
-                    className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
-                >
-                    <ArrowLeft size={16} />
-                    Back to Dashboard
-                </button>
+            <div className="border-b border-slate-200 dark:border-white/10 px-6 py-4 bg-white/80 dark:bg-slate-950/80 backdrop-blur-md sticky top-0 z-30">
+                <div className="max-w-5xl mx-auto flex items-center justify-between">
+                    <button
+                        onClick={() => navigate('/instructor/dashboard')}
+                        className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm font-black uppercase tracking-widest transition-colors"
+                    >
+                        <ArrowLeft size={16} />
+                        Instructor Console
+                    </button>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-1 rounded uppercase tracking-tighter">Instructor View</span>
+                    </div>
+                </div>
             </div>
 
             {msg.text && (
-                <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg flex items-center gap-3 text-sm font-medium animate-in slide-in-from-top-2 ${msg.type === 'success' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                <div className={`fixed top-20 right-4 z-50 p-4 rounded-2xl shadow-2xl flex items-center gap-3 text-xs font-black uppercase tracking-widest animate-in slide-in-from-right-4 ${msg.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
                     {msg.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />} 
                     {msg.text}
                 </div>
             )}
 
-            <div className="max-w-5xl mx-auto px-6 mt-8 space-y-6">
+            <div className="max-w-5xl mx-auto px-6 mt-12 space-y-8">
                 {/* Course Header */}
-                <div>
-                    <h1 className="text-3xl font-semibold text-slate-800">
-                        {course.CourseName}
-                    </h1>
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div className="space-y-2">
+                        <h1 className="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter uppercase leading-none">
+                            {course.CourseName}
+                        </h1>
+                        <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-[0.4em] ml-1">Terminal Master Instance</p>
+                    </div>
                 </div>
 
-                {/* Tabs */}
-                <div className="flex items-center gap-6 border-b border-slate-200">
-                    <button className="px-1 py-3 text-sm font-medium text-blue-600 border-b-2 border-blue-600">Course</button>
-                    <button onClick={() => navigate('/instructor/students')} className="px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700">Participants</button>
-                    <button onClick={() => navigate('/instructor/submissions')} className="px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700">Grades</button>
-                    <button onClick={() => setMsg({text: 'Activities dashboard coming soon!', type: 'success'})} className="px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700">Activities</button>
-                    <button onClick={() => setMsg({text: 'Competencies module coming soon!', type: 'success'})} className="px-1 py-3 text-sm font-medium text-slate-500 hover:text-slate-700">Competencies</button>
+                {/* Modern Tabs */}
+                <div className="flex items-center gap-1 p-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-2xl w-fit shadow-sm overflow-x-auto no-scrollbar">
+                    {tabs.map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-2 px-6 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
+                                activeTab === tab.id 
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' 
+                                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
+                            }`}
+                        >
+                            {tab.icon}
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
 
                 {/* Main Content Area */}
-                <div className="space-y-4 pt-4">
-                    
-                    {/* General Section */}
-                    <div className="border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                        <div className="px-5 py-4 flex items-center justify-between bg-slate-50/50">
-                            <h2 className="text-lg font-medium text-slate-800">General</h2>
-                            <button className="text-sm text-blue-600 hover:underline">Collapse all</button>
-                        </div>
-                        <div className="px-5 py-4 border-t border-slate-100 space-y-3">
-                            <Link to={`/discussions/${course.CourseID}`} className="flex items-center gap-3 text-blue-600 hover:underline p-2 rounded-md hover:bg-slate-50 transition-colors">
-                                <MessageSquare size={20} className="text-blue-500" />
-                                <span className="font-medium text-sm">Course Announcements & Discussions</span>
-                            </Link>
-                        </div>
-                    </div>
-
-                    {/* Weeks Accordions */}
-                    {weeks.map((week) => {
-                        const isExpanded = expandedWeeks[week.WeekID];
-                        
-                        let dateString = `Week ${week.WeekNumber}`;
-                        if (week.StartDate && week.EndDate) {
-                            const start = new Date(week.StartDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
-                            const end = new Date(week.EndDate).toLocaleDateString('en-US', { day: 'numeric', month: 'long' });
-                            dateString = `${start} - ${end}`;
-                        } else if (week.Title) {
-                            dateString = week.Title;
-                        }
-
-                        return (
-                            <div key={week.WeekID} className="border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm">
-                                <div 
-                                    onClick={() => toggleWeek(week.WeekID)}
-                                    className="w-full px-5 py-4 flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center">
-                                            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                                        </div>
-                                        <h2 className="text-lg font-medium text-slate-800">{dateString}</h2>
-                                    </div>
-                                    {/* Action Buttons for Week (Only show when hovered or always on mobile? Let's show always for instructor clarity) */}
-                                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                        <button 
-                                            onClick={() => setActiveForm({ type: 'material', weekId: week.WeekID })}
-                                            className="text-xs font-medium text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-full flex items-center gap-1 transition-colors"
-                                        >
-                                            <Plus size={14} /> PDF / Video
-                                        </button>
-                                        <button 
-                                            onClick={() => setActiveForm({ type: 'lecture', weekId: week.WeekID })}
-                                            className="text-xs font-medium text-orange-600 bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-full flex items-center gap-1 transition-colors"
-                                        >
-                                            <Plus size={14} /> Lecture
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <AnimatePresence>
-                                    {isExpanded && (
-                                        <motion.div
-                                            initial={{ height: 0, opacity: 0 }}
-                                            animate={{ height: 'auto', opacity: 1 }}
-                                            exit={{ height: 0, opacity: 0 }}
-                                            className="overflow-hidden"
-                                        >
-                                            <div className="px-5 py-4 border-t border-slate-200 space-y-2 pl-14">
-                                                
-                                                {/* Inline Forms */}
-                                                {activeForm.weekId === week.WeekID && (
-                                                    <div className="mb-6 p-4 border border-slate-200 rounded-lg bg-slate-50">
-                                                        <div className="flex justify-between items-center mb-4">
-                                                            <h4 className="text-sm font-semibold text-slate-800">
-                                                                {activeForm.type === 'material' ? 'Add Material' : 'Schedule Lecture'}
-                                                            </h4>
-                                                            <button onClick={() => setActiveForm({ type: null, weekId: null })} className="text-slate-400 hover:text-slate-600"><X size={16}/></button>
-                                                        </div>
-
-                                                        {activeForm.type === 'material' ? (
-                                                            <form onSubmit={(e) => handleUploadMaterial(e, week.WeekID)} className="space-y-4">
-                                                                <input type="text" placeholder="Title" required value={materialForm.title} onChange={e => setMaterialForm({...materialForm, title: e.target.value})} className="w-full text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-                                                                <div className="grid grid-cols-2 gap-4">
-                                                                    <select value={materialForm.fileType} onChange={e => setMaterialForm({...materialForm, fileType: e.target.value})} className="text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
-                                                                        <option value="document">PDF / Doc</option>
-                                                                        <option value="video">Video</option>
-                                                                    </select>
-                                                                    <input type="file" required onChange={e => setMaterialForm({...materialForm, file: e.target.files[0]})} className="text-sm p-1.5 border border-slate-300 rounded bg-white file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
-                                                                </div>
-                                                                <div className="flex justify-end">
-                                                                    <button type="submit" disabled={uploading} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded flex items-center gap-2">
-                                                                        {uploading && <Loader2 size={14} className="animate-spin" />}
-                                                                        Upload
-                                                                    </button>
-                                                                </div>
-                                                            </form>
-                                                        ) : (
-                                                            <form onSubmit={(e) => handleAddLecture(e, week.WeekID)} className="space-y-4">
-                                                                <input type="text" placeholder="Lecture Title" required value={lectureForm.title} onChange={e => setLectureForm({...lectureForm, title: e.target.value})} className="w-full text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-                                                                <div className="grid grid-cols-3 gap-4">
-                                                                    <input type="date" required value={lectureForm.date} onChange={e => setLectureForm({...lectureForm, date: e.target.value})} className="text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-                                                                    <input type="time" value={lectureForm.startTime} onChange={e => setLectureForm({...lectureForm, startTime: e.target.value})} className="text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-                                                                    <input type="time" value={lectureForm.endTime} onChange={e => setLectureForm({...lectureForm, endTime: e.target.value})} className="text-sm p-2 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none" />
-                                                                </div>
-                                                                <div className="flex justify-end">
-                                                                    <button type="submit" disabled={uploading} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded flex items-center gap-2">
-                                                                        {uploading && <Loader2 size={14} className="animate-spin" />}
-                                                                        Schedule
-                                                                    </button>
-                                                                </div>
-                                                            </form>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {/* Materials */}
-                                                {week.materials && week.materials.map(mat => {
-                                                    const isVideo = mat.FileURL && mat.FileURL.match(/\.(mp4|webm|ogg)$/i);
-                                                    return (
-                                                        <div key={`mat-${mat.MaterialID}`} className="flex items-center gap-3 p-2 rounded-md hover:bg-slate-50 group">
-                                                            {isVideo ? <Video size={20} className="text-emerald-500" /> : <FileText size={20} className="text-blue-500" />}
-                                                            <a href={`${API_URL}${mat.FileURL}`} target="_blank" rel="noreferrer" className="text-sm font-medium text-blue-600 hover:underline">{mat.Title}</a>
-                                                            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded ml-2">{isVideo ? 'Video' : 'PDF'}</span>
-                                                            
-                                                            <button onClick={() => handleDeleteMaterial(mat.MaterialID)} className="ml-auto text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <X size={16} />
-                                                            </button>
-                                                        </div>
-                                                    );
-                                                })}
-
-                                                {/* Lectures */}
-                                                {week.lectures && week.lectures.map(lec => (
-                                                    <div key={`lec-${lec.LectureID}`} className="flex items-center gap-3 p-2 rounded-md hover:bg-slate-50 group">
-                                                        <Calendar size={20} className="text-orange-500" />
-                                                        <span className="text-sm font-medium text-slate-800">{lec.Title}</span>
-                                                        <span className="text-xs text-slate-500 ml-auto">
-                                                            {lec.Date ? new Date(lec.Date).toLocaleDateString() : ''} 
-                                                            {lec.Start_Time ? ` at ${lec.Start_Time}` : ''}
-                                                        </span>
-                                                    </div>
-                                                ))}
-
-                                                {(!week.materials?.length && !week.lectures?.length) && (
-                                                    <p className="text-sm text-slate-400 italic">No activities or resources available yet.</p>
-                                                )}
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </div>
-                        );
-                    })}
-
-                    {/* Unassigned Lectures */}
-                    {lectures && lectures.length > 0 && (
-                        <div className="border border-slate-200 rounded-lg bg-white overflow-hidden shadow-sm mt-8 opacity-70">
-                            <div className="px-5 py-4 flex items-center bg-slate-50/50">
-                                <h2 className="text-sm font-medium text-slate-600 uppercase tracking-wider">Uncategorized Lectures</h2>
-                            </div>
-                            <div className="px-5 py-4 border-t border-slate-100 space-y-2">
-                                {lectures.map(lec => (
-                                    <div key={`unlec-${lec.LectureID}`} className="flex items-center gap-3 p-2">
-                                        <Calendar size={20} className="text-slate-400" />
-                                        <span className="text-sm font-medium text-slate-600">{lec.Title}</span>
-                                        <span className="text-xs text-slate-400 ml-auto">
-                                            {lec.Date ? new Date(lec.Date).toLocaleDateString() : ''}
-                                        </span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                <div className="min-h-[400px]">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeTab}
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -10 }}
+                            transition={{ duration: 0.2 }}
+                        >
+                            {renderTabContent()}
+                        </motion.div>
+                    </AnimatePresence>
                 </div>
             </div>
+
+            {/* Video Player Modal */}
+            <AnimatePresence>
+                {activeVideo && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-xl"
+                    >
+                        <div className="absolute inset-0" onClick={() => setActiveVideo(null)}></div>
+                        <div className="relative w-full max-w-4xl bg-black rounded-[2.5rem] overflow-hidden shadow-2xl border border-white/10">
+                            <div className="absolute top-0 inset-x-0 p-6 bg-gradient-to-b from-black/80 to-transparent z-10 flex justify-between items-center">
+                                <h3 className="text-white font-black italic tracking-widest uppercase text-sm">
+                                    {activeVideo.Title}
+                                </h3>
+                                <button
+                                    onClick={() => setActiveVideo(null)}
+                                    className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md transition-all"
+                                >
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            <div className="aspect-video w-full">
+                                <ReactPlayer
+                                    url={`${API_URL}${activeVideo.FileURL}`}
+                                    width="100%"
+                                    height="100%"
+                                    controls
+                                    playing
+                                />
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

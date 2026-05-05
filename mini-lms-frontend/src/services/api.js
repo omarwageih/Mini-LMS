@@ -131,7 +131,9 @@ export const studentAPI = {
     getDiscussionPosts: (courseId) => api.get(`/student/discussions/${courseId}`),
     createDiscussionPost: (data) => api.post('/student/discussions', data),
     getDiscussionReplies: (postId) => api.get(`/student/discussions/replies/${postId}`),
-    createDiscussionReply: (data) => api.post('/student/discussions/reply', data)
+    createDiscussionReply: (data) => api.post('/student/discussions/reply', data),
+    getCourseAttendance: (courseId) => api.get(`/student/courses/${courseId}/attendance`),
+    getCourseQuizzes: (courseId) => api.get(`/student/courses/${courseId}/quizzes`)
 };
 
 // ===== Instructor =====
@@ -149,16 +151,26 @@ export const instructorAPI = {
     // Courses
     getCourses: () => api.get('/instructor/courses'),
     createCourse: (data) => api.post('/instructor/courses', data),
+    getMyCourses: () => api.get('/instructor/my-courses'),
     getCourseContent: (courseId) => api.get(`/instructor/courses/${courseId}/content`),
     // Content
     addWeek: (data) => api.post('/instructor/weeks', data),
-    addMaterial: (data) => api.post('/instructor/materials', data),
+    addMaterial: (formData) => api.post('/instructor/materials', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }),
     addLecture: (data) => api.post('/instructor/lectures', data),
+    deleteLecture: (id) => api.delete(`/instructor/lectures/${id}`),
+    deleteWeek: (id) => api.delete(`/instructor/weeks/${id}`),
     // Assignments
     createAssignment: (data) => api.post('/instructor/assignments', data),
+    updateAssignment: (id, data) => api.put(`/instructor/assignments/${id}`, data),
+    deleteAssignment: (id) => api.delete(`/instructor/assignments/${id}`),
     // Submissions
     getSubmissions: (params) => api.get('/instructor/submissions', { params }),
     gradeSubmission: (data) => api.post('/instructor/submissions/grade', data),
+    // Stats & Tabs
+    getCourseParticipants: (courseId) => api.get(`/instructor/courses/${courseId}/participants`),
+    getCourseGrades: (courseId) => api.get(`/instructor/courses/${courseId}/grades`),
     // Materials
     getCourseMaterials: (courseId) => api.get(`/instructor/courses/${courseId}/materials`),
     uploadCourseMaterial: (formData) => api.post('/instructor/courses/materials', formData, {
@@ -168,15 +180,29 @@ export const instructorAPI = {
     // Announcements
     getAnnouncements: (courseId) => api.get(`/instructor/courses/${courseId}/announcements`),
     createAnnouncement: (data) => api.post('/instructor/courses/announcements', data),
-    deleteAnnouncement: (id) => api.delete(`/instructor/courses/announcements/${id}`)
+    deleteAnnouncement: (id) => api.delete(`/instructor/announcements/${id}`),
+    getCourseAttendance: (courseId) => api.get(`/instructor/courses/${courseId}/attendance`),
+    markAttendance: (data) => api.post('/instructor/attendance/mark', data),
+    getCourseQuizzes: (courseId) => api.get(`/instructor/courses/${courseId}/quizzes`)
 };
 
 // ===== Assistant =====
 export const assistantAPI = {
     getCourses: () => api.get('/assistant/courses'),
+    getCourseDetails: (courseId) => api.get(`/assistant/courses/${courseId}/details`),
     createAssignment: (data) => api.post('/assistant/assignments', data),
     getSubmissions: (params) => api.get('/assistant/submissions', { params }),
-    gradeSubmission: (data) => api.post('/assistant/submissions/grade', data)
+    gradeSubmission: (data) => api.post('/assistant/submissions/grade', data),
+    getCourseParticipants: (courseId) => api.get(`/assistant/courses/${courseId}/participants`),
+    getCourseGrades: (courseId) => api.get(`/assistant/courses/${courseId}/grades`),
+    getCourseMaterials: (courseId) => api.get(`/assistant/courses/${courseId}/materials`),
+    uploadCourseMaterial: (formData) => api.post('/assistant/courses/materials', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    }),
+    deleteCourseMaterial: (id) => api.delete(`/assistant/courses/materials/${id}`),
+    getCourseAttendance: (courseId) => api.get(`/assistant/courses/${courseId}/attendance`),
+    markAttendance: (data) => api.post('/assistant/attendance/mark', data),
+    getCourseQuizzes: (courseId) => api.get(`/assistant/courses/${courseId}/quizzes`)
 };
 
 export default api;

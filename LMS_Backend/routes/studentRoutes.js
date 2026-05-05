@@ -12,13 +12,11 @@ const {
     getCourseMaterials,
     getCourseAnnouncements,
     getCalendarEvents,
-    getDiscussionPosts,
-    createDiscussionPost,
-    getDiscussionReplies,
-    createDiscussionReply,
     updateProfile,
     getCourseParticipants
 } = require('../controllers/studentController');
+const { getCourseAttendance, getCourseQuizzes } = require('../controllers/courseController');
+const { getDiscussionPosts, createDiscussionPost, getDiscussionReplies, createDiscussionReply } = require('../controllers/discussionController');
 
 // All routes require Student role
 router.use(verifyToken, requireRole('Student'));
@@ -35,6 +33,8 @@ router.get('/courses/:courseId/content', requireEnrollment, getCourseContent);
 router.get('/courses/:courseId/materials', requireEnrollment, getCourseMaterials);
 router.get('/courses/:courseId/announcements', requireEnrollment, getCourseAnnouncements);
 router.get('/courses/:courseId/participants', requireEnrollment, getCourseParticipants);
+router.get('/courses/:courseId/attendance', requireEnrollment, getCourseAttendance);
+router.get('/courses/:courseId/quizzes', requireEnrollment, getCourseQuizzes);
 
 // ===== Assignments =====
 router.get('/assignments', getAssignments);

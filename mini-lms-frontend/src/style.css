@@ -28,6 +28,7 @@ body {
 .dark #root,
 .dark [class*="bg-slate-"],
 .dark [class*="bg-gray-"],
+.dark [class*="bg-white"],
 .dark .min-h-screen {
   background-color: #020617 !important;
   background: radial-gradient(circle at top right, #0f172a, #020617) fixed !important;

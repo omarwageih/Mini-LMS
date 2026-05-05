@@ -1,4 +1,4 @@
-const { sql, getPool } = require('./config/db');
+const { sql, getPool } = require('../config/db');
 
 /**
  * Run database migrations on startup.

@@ -32,7 +32,7 @@ CREATE TABLE Users (
     IsActive     BIT           DEFAULT 1,
     UserType     VARCHAR(20)   CHECK (UserType IN ('Instructor', 'Assistant', 'Student')),
     CreatedAt    DATETIME      DEFAULT GETDATE(),
-    ProfilePicture VARCHAR(255),
+    ProfilePicture VARCHAR(MAX),
     ResetPasswordToken VARCHAR(255),
     ResetPasswordExpires DATETIME,
     FailedLoginAttempts INT DEFAULT 0,
@@ -144,8 +144,10 @@ CREATE TABLE Lecture (
     End_Time      TIME,
     CourseID      INT          NOT NULL,
     InstructorID  INT          NOT NULL,
+    Week_ID       INT,
     FOREIGN KEY (CourseID)     REFERENCES Course(CourseID) ON DELETE CASCADE,
-    FOREIGN KEY (InstructorID) REFERENCES Instructors(UserID)
+    FOREIGN KEY (InstructorID) REFERENCES Instructors(UserID),
+    FOREIGN KEY (Week_ID)      REFERENCES StudyWeek(Week_ID) ON DELETE SET NULL
 );
 GO
 
@@ -239,14 +241,46 @@ CREATE TABLE Course_Grades (
 GO
 
 -- ---------------------------------
+-- Course Materials (General)
+-- ---------------------------------
+CREATE TABLE CourseMaterials (
+    MaterialID INT IDENTITY(1,1) PRIMARY KEY,
+    CourseID INT NOT NULL,
+    Title VARCHAR(200) NOT NULL,
+    Description VARCHAR(500),
+    FileUrl VARCHAR(500),
+    FileType VARCHAR(50),
+    UploadedBy INT NOT NULL,
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (CourseID) REFERENCES Course(CourseID) ON DELETE CASCADE,
+    FOREIGN KEY (UploadedBy) REFERENCES Users(UserID)
+);
+GO
+
+-- ---------------------------------
+-- Announcements
+-- ---------------------------------
+CREATE TABLE Announcements (
+    AnnouncementID INT IDENTITY(1,1) PRIMARY KEY,
+    CourseID INT NOT NULL,
+    Title VARCHAR(200) NOT NULL,
+    Content VARCHAR(MAX) NOT NULL,
+    PostedBy INT NOT NULL,
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (CourseID) REFERENCES Course(CourseID) ON DELETE CASCADE,
+    FOREIGN KEY (PostedBy) REFERENCES Users(UserID)
+);
+GO
+
+-- ---------------------------------
 -- Discussions
 -- ---------------------------------
 CREATE TABLE DiscussionPosts (
     PostID      INT           IDENTITY(1,1) PRIMARY KEY,
     CourseID    INT           NOT NULL,
     UserID      INT           NOT NULL,
-    Title       VARCHAR(200)  NOT NULL,
-    Content     VARCHAR(MAX)  NOT NULL,
+    Title       NVARCHAR(200) NOT NULL,
+    Content     NVARCHAR(MAX) NOT NULL,
     IsPinned    BIT           DEFAULT 0,
     CreatedAt   DATETIME      DEFAULT GETDATE(),
     FOREIGN KEY (CourseID) REFERENCES Course(CourseID) ON DELETE CASCADE,
@@ -258,10 +292,40 @@ CREATE TABLE DiscussionReplies (
     ReplyID     INT           IDENTITY(1,1) PRIMARY KEY,
     PostID      INT           NOT NULL,
     UserID      INT           NOT NULL,
-    Content     VARCHAR(MAX)  NOT NULL,
+    Content     NVARCHAR(MAX) NOT NULL,
     CreatedAt   DATETIME      DEFAULT GETDATE(),
     FOREIGN KEY (PostID) REFERENCES DiscussionPosts(PostID) ON DELETE CASCADE,
     FOREIGN KEY (UserID) REFERENCES Users(UserID)
+);
+GO
+
+-- ---------------------------------
+-- Notifications
+-- ---------------------------------
+CREATE TABLE Notifications (
+    NotificationID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT NOT NULL,
+    Type NVARCHAR(50) NOT NULL,
+    Title NVARCHAR(255) NOT NULL,
+    Message NVARCHAR(MAX),
+    Link NVARCHAR(500),
+    IsRead BIT DEFAULT 0,
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE
+);
+GO
+
+-- ---------------------------------
+-- Audit Log
+-- ---------------------------------
+CREATE TABLE AuditLog (
+    LogID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT,
+    Action NVARCHAR(100) NOT NULL,
+    Details NVARCHAR(MAX),
+    IPAddress NVARCHAR(50),
+    CreatedAt DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE SET NULL
 );
 GO
 

@@ -55,14 +55,14 @@ const AssistantDashboard = () => {
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: i * 0.1 }}
                                 whileHover={{ y: -8, scale: 1.02 }}
-                                className="glass-card p-8 flex items-center gap-6 border-l-4 border-l-blue-500 dark:border-l-[#a78bfa] cursor-pointer group transition-all shadow-xl shadow-slate-200/50 dark:shadow-none"
+                                className="glass-card p-8 flex items-center gap-6 border-l-4 border-l-blue-500 dark:border-l-blue-500 cursor-pointer group transition-all shadow-xl shadow-slate-200/50 dark:shadow-none"
                             >
                                 <div className={`p-4 rounded-2xl ${stat.bg} ${stat.color} group-hover:scale-110 transition-transform`}>
                                     {React.cloneElement(stat.icon, { size: 28 })}
                                 </div>
                                 <div className="flex flex-col">
                                     <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest mb-1">{stat.label}</p>
-                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white leading-none tracking-tight">{stat.val}</h3>
+                                    <h3 className="text-3xl font-black text-slate-900 dark:text-white leading-none tracking-tight italic">{stat.val}</h3>
                                 </div>
                             </motion.div>
                         </Link>
@@ -104,7 +104,7 @@ const AssistantDashboard = () => {
                             {[
                                 { title: 'My Courses', path: '/assistant/courses', icon: <BookOpen />, color: 'text-blue-400', bg: 'bg-blue-400/10' },
                                 { title: 'Create Assignment', path: '/assistant/assignments', icon: <ClipboardList />, color: 'text-cyan-500', bg: 'bg-cyan-500/10' },
-                                { title: 'Grade Submissions', path: '/assistant/submissions', icon: <ClipboardList />, color: 'text-[#a78bfa]', bg: 'bg-[#a78bfa]/10' }
+                                { title: 'Grade Submissions', path: '/assistant/submissions', icon: <ClipboardList />, color: 'text-blue-500', bg: 'bg-blue-500/10' }
                             ].map((item, idx) => (
                                 <Link key={idx} to={item.path}>
                                     <div className="flex gap-5 group items-center p-3 rounded-2xl transition-all border border-transparent hover:border-blue-500/20 hover:bg-blue-500/5">

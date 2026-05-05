@@ -5,7 +5,7 @@ import { apiGet, apiPost } from '../../services/api';
 
 const AssistantSubmissions = () => {
     const [submissions, setSubmissions] = useState([]);
-    const [gradeForm, setGradeForm] = useState({ submissionID: '', score: '' });
+    const [gradeForm, setGradeForm] = useState({ submissionId: '', score: '' });
     const [msg, setMsg] = useState({ text: '', type: '' });
 
     useEffect(() => { loadSubmissions(); }, []);
@@ -18,11 +18,11 @@ const AssistantSubmissions = () => {
         e.preventDefault();
         try {
             await apiPost('/assistant/submissions/grade', {
-                submissionID: parseInt(gradeForm.submissionID),
+                submissionId: parseInt(gradeForm.submissionId),
                 score: parseFloat(gradeForm.score)
             });
             setMsg({ text: 'Graded successfully!', type: 'success' });
-            setGradeForm({ submissionID: '', score: '' });
+            setGradeForm({ submissionId: '', score: '' });
             loadSubmissions();
         } catch (err) { setMsg({ text: err.message, type: 'error' }); }
     };
@@ -49,7 +49,7 @@ const AssistantSubmissions = () => {
                     <form onSubmit={handleGrade} className="flex flex-col md:flex-row gap-4 items-end">
                         <div className="flex-1">
                             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-2 mb-1 block">Submission ID</label>
-                            <select value={gradeForm.submissionID} onChange={e => setGradeForm({...gradeForm, submissionID: e.target.value})} required
+                            <select value={gradeForm.submissionId} onChange={e => setGradeForm({...gradeForm, submissionId: e.target.value})} required
                                 className="w-full bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 p-4 rounded-2xl outline-none focus:border-blue-500 transition-all text-sm text-slate-800 dark:text-white">
                                 <option value="">Select Submission</option>
                                 {submissions.map(s => (
@@ -115,7 +115,7 @@ const AssistantSubmissions = () => {
                                         <td className="p-5 text-xs font-bold text-slate-500">{s.CorrectedByName || '—'}</td>
                                         <td className="p-5 text-right">
                                             <button 
-                                                onClick={() => setGradeForm({ submissionID: s.SubmissionID.toString(), score: s.Score?.toString() || '' })}
+                                                onClick={() => setGradeForm({ submissionId: s.SubmissionID.toString(), score: s.Score?.toString() || '' })}
                                                 className="px-4 py-2 bg-slate-100 dark:bg-white/5 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border border-slate-200 dark:border-white/10 opacity-0 group-hover:opacity-100"
                                             >
                                                 {s.Score !== null ? 'Modify Grade' : 'Grade Now'}

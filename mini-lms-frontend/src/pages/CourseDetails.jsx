@@ -7,9 +7,10 @@ import {
 } from 'lucide-react';
 import { apiGet } from '../services/api';
 import ReactPlayer from 'react-player';
-import ParticipantsTab from './course-tabs/ParticipantsTab';
-import GradesTab from './course-tabs/GradesTab';
-import ActivitiesTab from './course-tabs/ActivitiesTab';
+import ParticipantsTab from '../components/common/ParticipantsTab';
+import GradesTab from '../components/common/GradesTab';
+import ActivitiesTab from '../components/common/ActivitiesTab';
+import AttendanceTab from '../components/common/AttendanceTab';
 import CompetenciesTab from './course-tabs/CompetenciesTab';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -205,11 +206,13 @@ const CourseDetails = () => {
                     </div>
                 );
             case 'participants':
-                return <ParticipantsTab courseId={id} />;
+                return <ParticipantsTab courseId={id} role="student" />;
+            case 'attendance':
+                return <AttendanceTab courseId={id} role="student" />;
             case 'grades':
-                return <GradesTab courseId={id} />;
+                return <GradesTab courseId={id} role="student" />;
             case 'activities':
-                return <ActivitiesTab assignments={assignments} />;
+                return <ActivitiesTab assignments={assignments} courseId={id} role="student" />;
             case 'competencies':
                 return <CompetenciesTab />;
             default:
@@ -218,10 +221,11 @@ const CourseDetails = () => {
     };
 
     const tabs = [
-        { id: 'course', label: 'General', icon: <BookOpen size={16} /> },
-        { id: 'participants', label: 'Participants', icon: <Users size={16} /> },
-        { id: 'grades', label: 'Grades', icon: <Award size={16} /> },
-        { id: 'activities', label: 'Activities', icon: <ClipboardList size={16} /> },
+        { id: 'course', label: 'Syllabus', icon: <BookOpen size={18} /> },
+        { id: 'activities', label: 'Activities', icon: <ClipboardList size={18} /> },
+        { id: 'grades', label: 'Grades', icon: <Award size={18} /> },
+        { id: 'attendance', label: 'Attendance', icon: <Calendar size={18} /> },
+        { id: 'participants', label: 'Participants', icon: <Users size={18} /> },
         { id: 'competencies', label: 'Competencies', icon: <Target size={16} /> }
     ];
 

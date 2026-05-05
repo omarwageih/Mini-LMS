@@ -37,7 +37,8 @@ const Sidebar = ({ isDark, toggleTheme }) => {
     ];
 
     const instructorItems = [
-      { icon: <PlusSquare size={22} />, label: 'Courses', path: '/instructor/courses' },
+      { icon: <BookOpen size={22} />, label: 'My Courses', path: '/instructor/my-courses' },
+      { icon: <PlusSquare size={22} />, label: 'Manage Syllabus', path: '/instructor/courses' },
       { icon: <Users size={22} />, label: 'Assistants', path: '/instructor/assistants' },
       { icon: <ClipboardList size={22} />, label: 'Submissions', path: '/instructor/submissions' },
       { icon: <Award size={22} />, label: 'Students', path: '/instructor/students' },

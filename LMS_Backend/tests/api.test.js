@@ -10,7 +10,12 @@ jest.mock('../config/db', () => ({
         Float: 'Float',
         Transaction: jest.fn()
     },
-    getPool: jest.fn()
+    getPool: jest.fn().mockResolvedValue({
+        request: jest.fn().mockReturnValue({
+            input: jest.fn().mockReturnThis(),
+            query: jest.fn().mockResolvedValue({ recordset: [{ count: 0 }] })
+        })
+    })
 }));
 
 jest.mock('../utils/emailService', () => ({

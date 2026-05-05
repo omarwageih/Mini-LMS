@@ -25,9 +25,11 @@ jest.mock('../config/db', () => ({
 
 // Mock upload middleware to bypass file system
 jest.mock('../middleware/upload', () => ({
-    single: () => (req, res, next) => {
-        req.file = { filename: 'mock-file.pdf' };
-        next();
+    upload: {
+        single: () => (req, res, next) => {
+            req.file = { filename: 'mock-file.pdf' };
+            next();
+        }
     }
 }));
 
@@ -86,7 +88,7 @@ describe('Student API', () => {
             const res = await request(app)
                 .post('/api/student/assignments/submit')
                 .set('Authorization', `Bearer ${token}`)
-                .send({ assignmentID: 1 }); // Send JSON instead of multipart, multer is mocked anyway.
+                .send({ assignmentId: 1 }); // Changed from assignmentID to assignmentId
             
             // We mocked the DB so the logic should process successfully
             expect(res.status).toBe(200);

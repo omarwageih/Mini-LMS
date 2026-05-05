@@ -2,20 +2,27 @@ const express = require('express');
 const router = express.Router();
 const { verifyToken, requireRole, requireCourseOwner } = require('../middleware/authMiddleware');
 const { materialsUpload } = require('../middleware/upload');
-const { validate, validateParams, addAssistantSchema, addStudentSchema, enrollStudentSchema, assignAssistantSchema, createCourseSchema, addWeekSchema, addMaterialSchema, addLectureSchema, createAssignmentSchema, instructorGradeSubmissionSchema, createAnnouncementSchema, idParamSchema } = require('../middleware/validation');
+const { validate, validateParams, addAssistantSchema, addStudentSchema, enrollStudentSchema, assignAssistantSchema, createCourseSchema, addWeekSchema, addMaterialSchema, addLectureSchema, createAssignmentSchema, updateAssignmentSchema, instructorGradeSubmissionSchema, createAnnouncementSchema, idParamSchema } = require('../middleware/validation');
 const {
     getAssistants, addAssistant, deleteAssistant, assignAssistantToCourse,
-    getStudents, addStudent, deleteStudent, enrollStudent,
-    getCourses, createCourse, deleteCourse,
-    addWeek, addMaterial, addLecture,
-    createAssignment,
-    getSubmissions,
-    getCourseContent,
+    getStudents, addStudent, deleteStudent, enrollStudent
+} = require('../controllers/userManagementController');
+
+const {
+    getCourses, createCourse, deleteCourse, getMyCourses, getCourseContent,
+    addWeek, deleteWeek, addMaterial, deleteMaterial, addLecture, deleteLecture,
     getCourseMaterials, uploadCourseMaterial, deleteCourseMaterial,
     getAnnouncements, createAnnouncement, deleteAnnouncement,
-    gradeSubmission
-} = require('../controllers/instructorController');
-const { getDiscussionPosts, createDiscussionPost, getDiscussionReplies, createDiscussionReply } = require('../controllers/studentController');
+    getCourseParticipants, getCourseGrades,
+    getCourseAttendance, markAttendance, getCourseQuizzes
+} = require('../controllers/courseController');
+
+const {
+    createAssignment, updateAssignment, deleteAssignment,
+    getSubmissions, gradeSubmission
+} = require('../controllers/assignmentController');
+
+const { getDiscussionPosts, createDiscussionPost, getDiscussionReplies, createDiscussionReply } = require('../controllers/discussionController');
 
 // All routes require Instructor role
 router.use(verifyToken, requireRole('Instructor'));
@@ -36,15 +43,28 @@ router.post('/students/enroll', validate(enrollStudentSchema), enrollStudent);
 router.get('/courses', getCourses);
 router.post('/courses', validate(createCourseSchema), createCourse);
 router.delete('/courses/:id', validateParams(idParamSchema), deleteCourse);
+router.get('/my-courses', getMyCourses);
 router.get('/courses/:courseId/content', requireCourseOwner, getCourseContent);
 
 // ===== Content =====
 router.post('/weeks', requireCourseOwner, validate(addWeekSchema), addWeek);
-router.post('/materials', requireCourseOwner, materialsUpload.single('file'), validate(addMaterialSchema), addMaterial);
+router.post('/materials', materialsUpload.single('file'), requireCourseOwner, validate(addMaterialSchema), addMaterial);
+router.delete('/materials/:id', deleteMaterial);
 router.post('/lectures', requireCourseOwner, validate(addLectureSchema), addLecture);
+router.delete('/lectures/:id', deleteLecture);
+router.delete('/weeks/:id', deleteWeek);
+
+// ===== Statistics & Tabs =====
+router.get('/courses/:courseId/participants', requireCourseOwner, getCourseParticipants);
+router.get('/courses/:courseId/grades', requireCourseOwner, getCourseGrades);
+router.get('/courses/:courseId/attendance', requireCourseOwner, getCourseAttendance);
+router.post('/attendance/mark', markAttendance);
+router.get('/courses/:courseId/quizzes', requireCourseOwner, getCourseQuizzes);
 
 // ===== Assignments =====
 router.post('/assignments', requireCourseOwner, validate(createAssignmentSchema), createAssignment);
+router.put('/assignments/:id', validateParams(idParamSchema), validate(updateAssignmentSchema), updateAssignment);
+router.delete('/assignments/:id', validateParams(idParamSchema), deleteAssignment);
 
 // ===== Submissions & Grading =====
 router.get('/submissions', getSubmissions);

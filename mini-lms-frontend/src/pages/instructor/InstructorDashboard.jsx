@@ -60,7 +60,7 @@ const InstructorDashboard = () => {
                     {[
                         { label: 'Total Students', val: String(stats.students).padStart(2, '0'), icon: <Users />, color: 'text-blue-500', bg: 'bg-blue-500/10', path: '/instructor/students' },
                         { label: 'Assistants', val: String(stats.assistants).padStart(2, '0'), icon: <UserPlus />, color: 'text-[#a78bfa]', bg: 'bg-[#a78bfa]/10', path: '/instructor/assistants' },
-                        { label: 'Active Courses', val: String(stats.courses).padStart(2, '0'), icon: <BookOpen />, color: 'text-cyan-500', bg: 'bg-cyan-500/10', path: '/instructor/courses' }
+                        { label: 'My Modules', val: String(stats.courses).padStart(2, '0'), icon: <BookOpen />, color: 'text-cyan-500', bg: 'bg-cyan-500/10', path: '/instructor/my-courses' }
                     ].map((stat, i) => (
                         <Link key={i} to={stat.path}>
                             <motion.div
@@ -105,8 +105,8 @@ const InstructorDashboard = () => {
                                     <Link to="/instructor/submissions" className="inline-flex items-center gap-3 px-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-950 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all">
                                         View Submissions <ArrowRight size={16} />
                                     </Link>
-                                    <Link to="/instructor/courses" className="inline-flex items-center gap-3 px-8 py-4 bg-white dark:bg-white/5 text-slate-700 dark:text-white rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg border border-slate-200 dark:border-white/10 hover:scale-105 transition-all">
-                                        Manage Courses <ArrowRight size={16} />
+                                    <Link to="/instructor/my-courses" className="inline-flex items-center gap-3 px-8 py-4 bg-white dark:bg-white/5 text-slate-700 dark:text-white rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg border border-slate-200 dark:border-white/10 hover:scale-105 transition-all">
+                                        My Modules <ArrowRight size={16} />
                                     </Link>
                                 </div>
                             </div>

@@ -33,17 +33,17 @@ const Assignments = () => {
         }
     };
 
-    const handleSubmit = async (assignmentID) => {
-        const file = fileInputRef.current[assignmentID]?.files[0];
+    const handleSubmit = async (assignmentId) => {
+        const file = fileInputRef.current[assignmentId]?.files[0];
         if (!file) {
             showToast('Please select a file (PDF or JPG)', 'error');
             return;
         }
 
-        setUploading(assignmentID);
+        setUploading(assignmentId);
         try {
             const formData = new FormData();
-            formData.append('assignmentID', assignmentID);
+            formData.append('assignmentId', assignmentId);
             formData.append('file', file);
             await studentAPI.submitAssignment(formData);
             showToast('Assignment submitted successfully! 🎉', 'success');

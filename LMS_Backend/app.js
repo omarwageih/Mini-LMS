@@ -55,7 +55,7 @@ app.use('/api/student', studentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-const runMigrations = require('./migrate');
+const runMigrations = require('./database/migrate');
 const http = require('http');
 const { initSocket } = require('./socket');
 

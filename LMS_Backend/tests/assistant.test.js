@@ -18,6 +18,15 @@ jest.mock('../config/db', () => ({
     })
 }));
 
+jest.mock('../middleware/upload', () => ({
+    materialsUpload: {
+        single: () => (req, res, next) => {
+            req.file = { filename: 'mock-mat.pdf' };
+            next();
+        }
+    }
+}));
+
 process.env.JWT_SECRET = 'test-secret';
 
 describe('Assistant API', () => {
@@ -67,11 +76,11 @@ describe('Assistant API', () => {
             expect(res.status).toBe(400);
         });
 
-        it('should grade successfully', async () => {
+        it('grade successfully', async () => {
             const res = await request(app)
                 .post('/api/assistant/submissions/grade')
                 .set('Authorization', `Bearer ${token}`)
-                .send({ submissionID: 1, score: 90 });
+                .send({ submissionId: 1, score: 90 }); // Changed to submissionId
 
             expect(res.status).toBe(200);
             expect(res.body.message).toBe("Submission graded successfully");

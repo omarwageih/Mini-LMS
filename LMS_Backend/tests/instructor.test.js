@@ -25,6 +25,7 @@ jest.mock('../config/db', () => ({
             input: jest.fn().mockReturnThis(),
             query: jest.fn().mockImplementation((q) => {
                 if (q.includes('INSERT INTO Course')) return Promise.resolve({ recordset: [{ CourseID: 1 }] });
+                if (q.includes('FROM Submission')) return Promise.resolve({ recordset: [{ StudentID: 1, Title: 'Test', CourseID: 1 }] });
                 return Promise.resolve({ recordset: [] });
             })
         })
@@ -32,9 +33,11 @@ jest.mock('../config/db', () => ({
 }));
 
 jest.mock('../middleware/upload', () => ({
-    single: () => (req, res, next) => {
-        req.file = { filename: 'mock-file.pdf' };
-        next();
+    materialsUpload: {
+        single: () => (req, res, next) => {
+            req.file = { filename: 'mock-file.pdf' };
+            next();
+        }
     }
 }));
 
@@ -81,12 +84,12 @@ describe('Instructor API', () => {
                 .post('/api/instructor/courses')
                 .set('Authorization', `Bearer ${token}`)
                 .send({ 
-                    courseName: 'Test Course',
+                    name: 'Test Course',
                     description: 'Desc',
                     maxMarks: 100
                 });
 
-            expect(res.status).toBe(200);
+            expect(res.status).toBe(201);
             expect(res.body.message).toBe("Course created successfully");
         });
     });
@@ -96,7 +99,7 @@ describe('Instructor API', () => {
             const res = await request(app)
                 .post('/api/instructor/submissions/grade')
                 .set('Authorization', `Bearer ${token}`)
-                .send({ submissionId: 1, grade: {}, feedback: 'Good' });
+                .send({ submissionId: 1, score: {}, feedback: 'Good' }); // Changed grade to score
             
             expect(res.status).toBe(400);
         });
@@ -105,7 +108,7 @@ describe('Instructor API', () => {
             const res = await request(app)
                 .post('/api/instructor/submissions/grade')
                 .set('Authorization', `Bearer ${token}`)
-                .send({ submissionId: 1, grade: 95, feedback: 'Excellent work' });
+                .send({ submissionId: 1, score: 95, feedback: 'Excellent work' });
 
             expect(res.status).toBe(200);
         });
