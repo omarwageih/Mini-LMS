@@ -136,6 +136,7 @@ const requireCourseOwner = async (req, res, next) => {
             return res.status(400).json({ message: "Course ID is required for authorization." });
         }
 
+        console.log(`[Auth] Checking ownership for Instructor ${instructorID} on Course ${courseId}`);
         const result = await pool.request()
             .input('InstructorID', sql.Int, instructorID)
             .input('CourseID', sql.Int, courseId)
@@ -146,10 +147,16 @@ const requireCourseOwner = async (req, res, next) => {
             return res.status(403).json({ message: "Access denied. You do not own this course." });
         }
 
+        console.log(`[Auth] Ownership verified for Instructor ${instructorID} on Course ${courseId}`);
         next();
     } catch (err) {
-        console.error("[Auth Error]", err);
-        res.status(500).json({ error: "Internal authorization error" });
+        console.error("[Auth Error] Critical failure in requireCourseOwner:", {
+            message: err.message,
+            stack: err.stack,
+            courseId: req.params.courseId || req.body.courseId,
+            instructorId: req.user ? req.user.id : 'N/A'
+        });
+        res.status(500).json({ error: "Internal authorization error", details: err.message });
     }
 };
 

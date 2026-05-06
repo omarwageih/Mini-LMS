@@ -399,8 +399,9 @@ const getCourseParticipants = async (req, res) => {
 const getCourseGrades = async (req, res) => {
     const { courseId } = req.params;
     try {
-        console.log(`[DEBUG] Fetching grades for CourseID: ${courseId}`);
+        console.log(`[DEBUG] getCourseGrades: Request for CourseID: ${courseId}`);
         const pool = await getPool();
+        console.log(`[DEBUG] getCourseGrades: DB Connected, executing query for CourseID: ${courseId}`);
         const result = await pool.request().input('cId', sql.Int, courseId).query(`
             SELECT u.FullName, u.Email, cg.GradeID, cg.StudentID, cg.CourseID,
                    cg.AssignmentTotal,
@@ -412,7 +413,7 @@ const getCourseGrades = async (req, res) => {
             INNER JOIN Users u ON cg.StudentID = u.UserID 
             WHERE cg.CourseID = @cId
         `);
-        console.log(`[DEBUG] getCourseGrades returned ${result.recordset.length} rows`);
+        console.log(`[DEBUG] getCourseGrades: Query successful. Found ${result.recordset.length} students.`);
         return success(res, result.recordset);
     } catch (err) { 
         console.error(`[CRITICAL ERROR] getCourseGrades failed for CourseID ${courseId}:`, {

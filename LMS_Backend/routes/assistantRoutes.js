@@ -4,7 +4,8 @@ const { materialsUpload } = require('../middleware/upload');
 const { verifyToken, requireRole, requireCourseAssistant } = require('../middleware/authMiddleware');
 const { validate, createAssignmentSchema, assistantGradeSubmissionSchema } = require('../middleware/validation');
 const {
-    getMyCourses, getCourseContent, getCourseMaterials, uploadCourseMaterial, deleteCourseMaterial,
+    getCourses, getMyCourses, getCourseContent, addWeek, deleteWeek, addMaterial, deleteMaterial, addLecture, deleteLecture,
+    getCourseMaterials, uploadCourseMaterial, deleteCourseMaterial,
     getCourseParticipants, getCourseGrades,
     getCourseAttendance, markAttendance, getCourseQuizzes
 } = require('../controllers/courseController');
