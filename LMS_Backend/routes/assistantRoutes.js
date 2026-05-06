@@ -33,11 +33,11 @@ router.post('/submissions/grade', validate(assistantGradeSubmissionSchema), grad
 // ===== Course Materials (with course authorization where applicable) =====
 router.get('/courses/:courseId/materials', requireCourseAssistant, getCourseMaterials);
 router.post('/courses/materials', materialsUpload.single('file'), requireCourseAssistant, uploadCourseMaterial);
-router.delete('/courses/materials/:id', deleteCourseMaterial); // Auth check inside controller
+router.delete('/courses/materials/:id', requireCourseAssistant, deleteCourseMaterial);
 router.get('/courses/:courseId/participants', requireCourseAssistant, getCourseParticipants);
 router.get('/courses/:courseId/grades', requireCourseAssistant, getCourseGrades);
 router.get('/courses/:courseId/attendance', requireCourseAssistant, getCourseAttendance);
-router.post('/attendance/mark', markAttendance);
+router.post('/attendance/mark', requireCourseAssistant, markAttendance);
 router.post('/lectures', requireCourseAssistant, addLecture);
 router.get('/courses/:courseId/quizzes', requireCourseAssistant, getCourseQuizzes);
 

@@ -89,4 +89,33 @@ const deleteFile = (relativePath) => {
     }
 };
 
-module.exports = { logAudit, createNotification, deleteFile };
+/**
+ * Authorization helper to check if a user (Instructor or Assistant) has access to a specific course.
+ * @param {object} pool - Database connection pool
+ * @param {number} courseId - The ID of the course
+ * @param {number} userId - The ID of the user
+ * @param {string} userType - The role of the user ('Instructor' or 'Assistant')
+ * @returns {Promise<boolean>}
+ */
+const checkCourseAccess = async (pool, courseId, userId, userType) => {
+    try {
+        if (userType === 'Instructor') {
+            const check = await pool.request()
+                .input('cId', sql.Int, courseId)
+                .input('uId', sql.Int, userId)
+                .query('SELECT 1 FROM Course WHERE CourseID = @cId AND InstructorID = @uId');
+            return check.recordset.length > 0;
+        } else if (userType === 'Assistant') {
+            const check = await pool.request()
+                .input('cId', sql.Int, courseId)
+                .input('uId', sql.Int, userId)
+                .query('SELECT 1 FROM Course_Assistants WHERE CourseID = @cId AND AssistantID = @uId');
+            return check.recordset.length > 0;
+        }
+    } catch (err) {
+        console.error('Error checking course access:', err.message);
+    }
+    return false;
+};
+
+module.exports = { logAudit, createNotification, deleteFile, checkCourseAccess };

@@ -30,7 +30,6 @@ The user interface that students and instructors see.
 
 ## 📝 3. Root Files
 - **`docker-compose.yml`**: Used to run the entire system inside "Containers" (advanced setup).
-- **`check_triggers.js`**: A utility script to verify if database triggers are working correctly.
 - **`README.md`**: The main "How-to" guide for the project.
 
 ---

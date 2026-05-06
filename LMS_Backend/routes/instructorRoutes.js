@@ -49,22 +49,22 @@ router.get('/courses/:courseId/content', requireCourseOwner, getCourseContent);
 // ===== Content =====
 router.post('/weeks', requireCourseOwner, validate(addWeekSchema), addWeek);
 router.post('/materials', materialsUpload.single('file'), requireCourseOwner, validate(addMaterialSchema), addMaterial);
-router.delete('/materials/:id', deleteMaterial);
+router.delete('/materials/:id', requireCourseOwner, deleteMaterial);
 router.post('/lectures', requireCourseOwner, validate(addLectureSchema), addLecture);
-router.delete('/lectures/:id', deleteLecture);
-router.delete('/weeks/:id', deleteWeek);
+router.delete('/lectures/:id', requireCourseOwner, deleteLecture);
+router.delete('/weeks/:id', requireCourseOwner, deleteWeek);
 
 // ===== Statistics & Tabs =====
 router.get('/courses/:courseId/participants', requireCourseOwner, getCourseParticipants);
 router.get('/courses/:courseId/grades', requireCourseOwner, getCourseGrades);
 router.get('/courses/:courseId/attendance', requireCourseOwner, getCourseAttendance);
-router.post('/attendance/mark', markAttendance);
+router.post('/attendance/mark', requireCourseOwner, markAttendance);
 router.get('/courses/:courseId/quizzes', requireCourseOwner, getCourseQuizzes);
 
 // ===== Assignments =====
 router.post('/assignments', requireCourseOwner, validate(createAssignmentSchema), createAssignment);
-router.put('/assignments/:id', validateParams(idParamSchema), validate(updateAssignmentSchema), updateAssignment);
-router.delete('/assignments/:id', validateParams(idParamSchema), deleteAssignment);
+router.put('/assignments/:id', requireCourseOwner, validateParams(idParamSchema), validate(updateAssignmentSchema), updateAssignment);
+router.delete('/assignments/:id', requireCourseOwner, validateParams(idParamSchema), deleteAssignment);
 
 // ===== Submissions & Grading =====
 router.get('/submissions', getSubmissions);

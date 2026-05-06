@@ -1,26 +1,8 @@
 const { sql, getPool } = require('../config/db');
-const { createNotification, logAudit } = require('../utils/helpers');
+const { createNotification, logAudit, checkCourseAccess } = require('../utils/helpers');
 const { success, error, badRequest, forbidden } = require('../utils/responseHandler');
 
-/**
- * Common validation to check if a user can manage assignments for a course.
- */
-const checkCourseAccess = async (pool, courseId, userId, userType) => {
-    if (userType === 'Instructor') {
-        const check = await pool.request()
-            .input('cId', sql.Int, courseId)
-            .input('uId', sql.Int, userId)
-            .query('SELECT 1 FROM Course WHERE CourseID = @cId AND InstructorID = @uId');
-        return check.recordset.length > 0;
-    } else if (userType === 'Assistant') {
-        const check = await pool.request()
-            .input('cId', sql.Int, courseId)
-            .input('uId', sql.Int, userId)
-            .query('SELECT 1 FROM Course_Assistants WHERE CourseID = @cId AND AssistantID = @uId');
-        return check.recordset.length > 0;
-    }
-    return false;
-};
+
 
 /**
  * POST /api/instructor/assignments OR /api/assistant/assignments
