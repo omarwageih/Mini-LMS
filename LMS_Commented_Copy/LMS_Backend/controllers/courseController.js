@@ -1,18 +1,26 @@
+/**
+ * COURSE CONTROLLER
+ * Manages everything related to courses, including content (weeks, materials, lectures),
+ * students/participants, grades, attendance, and announcements.
+ */
 const { sql, getPool } = require('../config/db');
-const { createNotification, logAudit, deleteFile } = require('../utils/helpers');
-const { success, error, badRequest, forbidden, notFound } = require('../utils/responseHandler');
+const { createNotification, logAudit, deleteFile } = require('../utils/helpers'); // Utility helpers
+const { success, error, badRequest, forbidden, notFound } = require('../utils/responseHandler'); // Standardized API responses
 
 /**
- * Authorization helper to check if user has access to a course.
+ * AUTHORIZATION HELPER
+ * Verifies if a specific user (Instructor or Assistant) has the right to manage a course.
  */
 const checkCourseAccess = async (pool, courseId, userId, userType) => {
     if (userType === 'Instructor') {
+        // Check if the instructor is the owner of this course
         const check = await pool.request()
             .input('cId', sql.Int, courseId)
             .input('uId', sql.Int, userId)
             .query('SELECT 1 FROM Course WHERE CourseID = @cId AND InstructorID = @uId');
         return check.recordset.length > 0;
     } else if (userType === 'Assistant') {
+        // Check if the assistant is assigned to this course
         const check = await pool.request()
             .input('cId', sql.Int, courseId)
             .input('uId', sql.Int, userId)
@@ -23,17 +31,20 @@ const checkCourseAccess = async (pool, courseId, userId, userType) => {
 };
 
 // =============================================
-//  COURSE CRUD
+//  COURSE CRUD (Create, Read, Update, Delete)
 // =============================================
 
+/**
+ * GET ALL COURSES
+ * Fetches a list of every course in the system with instructor details.
+ */
 const getCourses = async (req, res) => {
     try {
         const pool = await getPool();
-        let query = `SELECT c.CourseID, c.Name AS CourseName, c.Max_Marks, u.FullName AS InstructorName FROM Course c LEFT JOIN Users u ON c.InstructorID = u.UserID`;
-        if (req.user.type === 'Instructor') {
-            // Instructors might want to see ALL courses for some management pages, but let's default to THEIR courses if 'my-courses' is not used
-            // Actually, keep it as 'all' for the general list if requested
-        }
+        let query = `SELECT c.CourseID, c.Name AS CourseName, c.Max_Marks, u.FullName AS InstructorName 
+                     FROM Course c 
+                     LEFT JOIN Users u ON c.InstructorID = u.UserID`;
+        
         const result = await pool.request().query(query);
         return success(res, result.recordset);
     } catch (err) {
@@ -41,6 +52,10 @@ const getCourses = async (req, res) => {
     }
 };
 
+/**
+ * GET MY COURSES
+ * Filters courses based on the logged-in user (Instructor's owned courses or Assistant's assigned courses).
+ */
 const getMyCourses = async (req, res) => {
     try {
         const pool = await getPool();
@@ -49,10 +64,12 @@ const getMyCourses = async (req, res) => {
         
         let query = "";
         if (userType === 'Instructor') {
+            // Instructor sees courses they created
             query = `SELECT c.CourseID, c.CourseID as courseId, c.Name AS CourseName, c.Max_Marks, u.FullName AS InstructorName 
                      FROM Course c LEFT JOIN Users u ON c.InstructorID = u.UserID 
                      WHERE c.InstructorID = @uId`;
         } else {
+            // Assistant sees courses they were assigned to assist in
             query = `SELECT c.CourseID, c.CourseID as courseId, c.Name AS CourseName, u.FullName AS InstructorName, 
                      (SELECT COUNT(*) FROM Enrollment WHERE CourseID = c.CourseID) AS StudentCount
                      FROM Course_Assistants ca
@@ -68,12 +85,17 @@ const getMyCourses = async (req, res) => {
     }
 };
 
+/**
+ * CREATE NEW COURSE
+ * Allows an instructor to initialize a new course module.
+ */
 const createCourse = async (req, res) => {
     const { name, maxMarks } = req.body;
     if (!name) return badRequest(res, "Course name is required.");
 
     try {
         const pool = await getPool();
+        // Insert new course and get its new ID
         const result = await pool.request()
             .input('name', sql.VarChar, name)
             .input('maxMarks', sql.Int, maxMarks || 100)
@@ -81,6 +103,7 @@ const createCourse = async (req, res) => {
             .query(`INSERT INTO Course (Name, Max_Marks, InstructorID) OUTPUT INSERTED.CourseID VALUES (@name, @maxMarks, @instructorID)`);
 
         const courseID = result.recordset[0].CourseID;
+        // Audit log for security tracking
         await logAudit(req.user.id, 'CREATE_COURSE', `Created course: ${name} (ID: ${courseID})`, req.ip);
         return success(res, { message: "Course created successfully", courseID }, "Success", 201);
     } catch (err) {
@@ -88,20 +111,26 @@ const createCourse = async (req, res) => {
     }
 };
 
+/**
+ * DELETE COURSE
+ * Performs a cascading delete (cleanly removes all related content, enrollments, and grades).
+ */
 const deleteCourse = async (req, res) => {
     const courseId = req.params.id;
     try {
         const pool = await getPool();
-        // Only instructors can delete their own courses
+        // 1. Ownership Check: Only the owner (instructor) can delete the course
         const check = await pool.request().input('cId', sql.Int, courseId).input('uId', sql.Int, req.user.id).query('SELECT 1 FROM Course WHERE CourseID = @cId AND InstructorID = @uId');
         if (check.recordset.length === 0) return forbidden(res, "Unauthorized or course not found.");
 
+        // 2. Transaction: Use a transaction to ensure all related data is deleted together
         const transaction = new sql.Transaction(pool);
         await transaction.begin();
         try {
             const request = new sql.Request(transaction);
             request.input('courseId', sql.Int, courseId);
-            // Cascading deletes for tables without formal foreign key constraints
+            
+            // Delete all dependencies across various tables
             await request.query('DELETE FROM CourseMaterials WHERE CourseID = @courseId');
             await request.query('DELETE FROM Announcements WHERE CourseID = @courseId');
             await request.query('DELETE FROM DiscussionReplies WHERE PostID IN (SELECT PostID FROM DiscussionPosts WHERE CourseID = @courseId)');
@@ -126,29 +155,31 @@ const deleteCourse = async (req, res) => {
 //  COURSE CONTENT (Weeks, Materials, Lectures)
 // =============================================
 
+/**
+ * GET COURSE CONTENT (Syllabus/Dashboard)
+ * The main loader for a course page. Fetches weeks, materials, lectures, and assignments.
+ */
 const getCourseContent = async (req, res) => {
     const { courseId } = req.params;
     try {
         const pool = await getPool();
-        const hasAccess = await checkCourseAccess(pool, courseId, req.user.id, req.user.type);
-        if (!hasAccess && req.user.type !== 'Student') { // Students have separate route or check
-             // Actually, for Instructor/Assistant portals, check access.
-        }
-
-        // 1. Course Info
+        
+        // 1. Course Metadata
         const courseRes = await pool.request().input('cId', sql.Int, courseId).query('SELECT c.*, u.FullName AS InstructorName FROM Course c LEFT JOIN Users u ON c.InstructorID = u.UserID WHERE c.CourseID = @cId');
         if (courseRes.recordset.length === 0) return notFound(res, "Course not found.");
 
-        // 2. Weeks + Materials + Lectures
+        // 2. Structural Data: Loop through weeks and attach materials/lectures for each
         const weeksRes = await pool.request().input('cId', sql.Int, courseId).query('SELECT Week_ID AS WeekID, Week_Number AS WeekNumber, Title, StartDate, EndDate FROM StudyWeek WHERE CourseID = @cId ORDER BY Week_Number');
         const weeks = [];
         for (const week of weeksRes.recordset) {
+            // Find all files/URLs for this week
             const mats = await pool.request().input('wId', sql.Int, week.WeekID).query('SELECT Material_ID AS MaterialID, Title, Type, FileURL FROM Material WHERE Week_ID = @wId');
+            // Find all lecture sessions for this week
             const lecs = await pool.request().input('wId', sql.Int, week.WeekID).query('SELECT LectureID, Title, Date, Start_Time, End_Time FROM Lecture WHERE Week_ID = @wId ORDER BY Date');
             weeks.push({ ...week, materials: mats.recordset, lectures: lecs.recordset });
         }
 
-        // 3. Stats
+        // 3. Stats & Assignments: Needed for the dashboard counters
         const enrolled = await pool.request().input('cId', sql.Int, courseId).query('SELECT COUNT(*) AS total FROM Enrollment WHERE CourseID = @cId');
         const assignments = await pool.request()
             .input('cId', sql.Int, courseId)
@@ -172,16 +203,25 @@ const getCourseContent = async (req, res) => {
     }
 };
 
+/**
+ * ADD STUDY WEEK
+ * Creates a structural container (e.g., Week 1, Week 2) for course materials.
+ */
 const addWeek = async (req, res) => {
     const { courseId, weekNumber, title } = req.body;
     try {
         const pool = await getPool();
+        // Auth Check
         if (!await checkCourseAccess(pool, courseId, req.user.id, req.user.type)) return forbidden(res);
+        
         const result = await pool.request().input('cId', sql.Int, courseId).input('wn', sql.Int, weekNumber).input('t', sql.VarChar, title).query('INSERT INTO StudyWeek (CourseID, Week_Number, Title) OUTPUT INSERTED.Week_ID VALUES (@cId, @wn, @t)');
         return success(res, { message: "Week added", weekID: result.recordset[0].Week_ID });
     } catch (err) { return error(res, "Failed to add week", 500, err); }
 };
 
+/**
+ * DELETE STUDY WEEK
+ */
 const deleteWeek = async (req, res) => {
     const { id } = req.params;
     try {
@@ -191,6 +231,10 @@ const deleteWeek = async (req, res) => {
     } catch (err) { return error(res, "Failed to delete week", 500, err); }
 };
 
+/**
+ * ADD MATERIAL
+ * Handles file uploads (PDFs, Images, Videos) or external URLs.
+ */
 const addMaterial = async (req, res) => {
     const { weekId, title, fileType, url } = req.body;
     try {
@@ -199,14 +243,16 @@ const addMaterial = async (req, res) => {
         let finalUrl = url || null;
         let finalType = fileType || 'document';
 
+        // 1. Handle File Upload: If a file was sent, use the local path
         if (req.file) {
             finalUrl = `/uploads/materials/${req.file.filename}`;
+            // Auto-detect type from mimetype
             if (req.file.mimetype.includes('pdf')) finalType = 'PDF';
             else if (req.file.mimetype.includes('image')) finalType = 'Image';
             else if (req.file.mimetype.includes('video')) finalType = 'Video';
             else finalType = 'File';
         } else if (url) {
-            // If it's a URL, detect if it's a video or document
+            // 2. Handle External URL: Detect if it's a YouTube video or just a link
             if (url.includes('youtube.com') || url.includes('vimeo.com') || url.match(/\.(mp4|webm|ogg)$/i)) {
                 finalType = 'Video';
             } else {
@@ -218,6 +264,7 @@ const addMaterial = async (req, res) => {
             return badRequest(res, "Either a file or a URL is required.");
         }
 
+        // 3. Save to Database
         await pool.request()
             .input('wId', sql.Int, weekId)
             .input('t', sql.VarChar, title)
@@ -232,26 +279,48 @@ const addMaterial = async (req, res) => {
     }
 };
 
+/**
+ * DELETE MATERIAL
+ * Removes the database record and the actual file from the server disk.
+ */
 const deleteMaterial = async (req, res) => {
     const { id } = req.params;
     try {
         const pool = await getPool();
+        // Find the file path to delete it from disk
         const mat = await pool.request().input('id', sql.Int, id).query('SELECT FileURL FROM Material WHERE Material_ID = @id');
         if (mat.recordset.length > 0 && mat.recordset[0].FileURL) deleteFile(mat.recordset[0].FileURL);
+        
         await pool.request().input('id', sql.Int, id).query('DELETE FROM Material WHERE Material_ID = @id');
         return success(res, { message: "Material deleted" });
     } catch (err) { return error(res, "Failed to delete material", 500, err); }
 };
 
+/**
+ * ADD LECTURE SESSION
+ * Schedules a live or recorded class meeting.
+ */
 const addLecture = async (req, res) => {
     const { courseId, title, date, startTime, endTime, weekId } = req.body;
     try {
         const pool = await getPool();
-        await pool.request().input('t', sql.VarChar, title).input('d', sql.Date, date).input('s', sql.VarChar, startTime).input('e', sql.VarChar, endTime).input('cId', sql.Int, courseId).input('uId', sql.Int, req.user.id).input('wId', sql.Int, weekId).query('INSERT INTO Lecture (Title, Date, Start_Time, End_Time, CourseID, InstructorID, Week_ID) VALUES (@t, @d, @s, @e, @cId, @uId, @wId)');
+        await pool.request()
+            .input('t', sql.VarChar, title)
+            .input('d', sql.Date, date)
+            .input('s', sql.VarChar, startTime)
+            .input('e', sql.VarChar, endTime)
+            .input('cId', sql.Int, courseId)
+            .input('uId', sql.Int, req.user.id)
+            .input('wId', sql.Int, weekId)
+            .query('INSERT INTO Lecture (Title, Date, Start_Time, End_Time, CourseID, InstructorID, Week_ID) VALUES (@t, @d, @s, @e, @cId, @uId, @wId)');
+        
         return success(res, { message: "Lecture added" });
     } catch (err) { return error(res, "Failed to add lecture", 500, err); }
 };
 
+/**
+ * DELETE LECTURE
+ */
 const deleteLecture = async (req, res) => {
     const { id } = req.params;
     try {
@@ -263,6 +332,7 @@ const deleteLecture = async (req, res) => {
 
 // =============================================
 //  ADDITIONAL COURSE MATERIALS (Standalone)
+//  These are shared across the course generally.
 // =============================================
 
 const getCourseMaterials = async (req, res) => {
@@ -335,6 +405,9 @@ const deleteCourseMaterial = async (req, res) => {
 //  ANNOUNCEMENTS
 // =============================================
 
+/**
+ * FETCH ANNOUNCEMENTS
+ */
 const getAnnouncements = async (req, res) => {
     const { courseId } = req.params;
     try {
@@ -344,14 +417,21 @@ const getAnnouncements = async (req, res) => {
     } catch (err) { return error(res, "Failed to fetch announcements", 500, err); }
 };
 
+/**
+ * CREATE ANNOUNCEMENT
+ * Posts a message and notifies all enrolled students.
+ */
 const createAnnouncement = async (req, res) => {
     const { courseId, title, content } = req.body;
     try {
         const pool = await getPool();
+        // Auth check
         if (!await checkCourseAccess(pool, courseId, req.user.id, req.user.type)) return forbidden(res);
+        
+        // 1. Insert Announcement
         await pool.request().input('cId', sql.Int, courseId).input('t', sql.VarChar, title).input('c', sql.VarChar, content).input('uId', sql.Int, req.user.id).query('INSERT INTO Announcements (CourseID, Title, Content, PostedBy) VALUES (@cId, @t, @c, @uId)');
         
-        // Notify students
+        // 2. Notification Loop: Find every student in the course and send them an alert
         const students = await pool.request().input('cId', sql.Int, courseId).query('SELECT StudentID FROM Enrollment WHERE CourseID = @cId');
         for (const s of students.recordset) {
             await createNotification(s.StudentID, 'announcement', `New Announcement: ${title}`, content.substring(0, 50), `/course/${courseId}`);
@@ -373,6 +453,10 @@ const deleteAnnouncement = async (req, res) => {
 //  PARTICIPANTS & GRADES
 // =============================================
 
+/**
+ * FETCH ROSTER (Participants)
+ * Fetches everyone associated with a course (Instructors, Assistants, and Students).
+ */
 const getCourseParticipants = async (req, res) => {
     const { courseId } = req.params;
     try {
@@ -396,12 +480,15 @@ const getCourseParticipants = async (req, res) => {
     } catch (err) { return error(res, "Failed to fetch participants", 500, err); }
 };
 
+/**
+ * FETCH COURSE GRADES
+ * Fetches the accumulated grade summary for every student in the course.
+ */
 const getCourseGrades = async (req, res) => {
     const { courseId } = req.params;
     try {
-        console.log(`[DEBUG] getCourseGrades: Request for CourseID: ${courseId}`);
         const pool = await getPool();
-        console.log(`[DEBUG] getCourseGrades: DB Connected, executing query for CourseID: ${courseId}`);
+        // Fetches totals from the 'Course_Grades' view/table which aggregates individual scores
         const result = await pool.request().input('cId', sql.Int, courseId).query(`
             SELECT u.FullName, u.Email, cg.GradeID, cg.StudentID, cg.CourseID,
                    cg.AssignmentTotal,
@@ -413,14 +500,8 @@ const getCourseGrades = async (req, res) => {
             INNER JOIN Users u ON cg.StudentID = u.UserID 
             WHERE cg.CourseID = @cId
         `);
-        console.log(`[DEBUG] getCourseGrades: Query successful. Found ${result.recordset.length} students.`);
         return success(res, result.recordset);
     } catch (err) { 
-        console.error(`[CRITICAL ERROR] getCourseGrades failed for CourseID ${courseId}:`, {
-            message: err.message,
-            stack: err.stack,
-            sqlError: err.number || err.code
-        });
         return error(res, `Failed to fetch grades: ${err.message}`, 500, err); 
     }
 };
@@ -429,6 +510,10 @@ const getCourseGrades = async (req, res) => {
 //  ATTENDANCE & QUIZZES
 // =============================================
 
+/**
+ * FETCH ATTENDANCE MATRIX
+ * Fetches a list of all students and their status for every lecture in the course.
+ */
 const getCourseAttendance = async (req, res) => {
     const { courseId } = req.params;
     try {
@@ -449,10 +534,15 @@ const getCourseAttendance = async (req, res) => {
     } catch (err) { return error(res, "Failed to fetch attendance", 500, err); }
 };
 
+/**
+ * MARK ATTENDANCE
+ * Records or updates a student's presence/absence for a lecture.
+ */
 const markAttendance = async (req, res) => {
     const { lectureId, studentId, status, score } = req.body;
     try {
         const pool = await getPool();
+        // UPSERT Logic: Update if exists, otherwise Insert
         await pool.request()
             .input('lId', sql.Int, lectureId)
             .input('sId', sql.Int, studentId)
@@ -468,6 +558,9 @@ const markAttendance = async (req, res) => {
     } catch (err) { return error(res, "Failed to mark attendance", 500, err); }
 };
 
+/**
+ * FETCH QUIZZES
+ */
 const getCourseQuizzes = async (req, res) => {
     const { courseId } = req.params;
     try {

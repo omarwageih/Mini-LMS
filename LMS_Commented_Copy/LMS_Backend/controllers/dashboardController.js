@@ -1,13 +1,25 @@
+/**
+ * DASHBOARD CONTROLLER
+ * Fetches high-level summary statistics for the user's dashboard.
+ * Logic varies depending on the user's role (Instructor, Assistant, or Student).
+ */
 const { sql, getPool } = require('../config/db');
 
+/**
+ * GET DASHBOARD STATS
+ * Aggregates counts and performance metrics to display as "stat cards" on the home screen.
+ */
 const getStats = async (req, res) => {
     try {
         const pool = await getPool();
-        const { id, type } = req.user;
+        const { id, type } = req.user; // Get user info from the authentication token
         let stats = [];
 
+        // ---------------------------------------------------------
+        // ROLE: INSTRUCTOR (Owner of courses)
+        // ---------------------------------------------------------
         if (type === 'Instructor') {
-            // 1. Total Students in their courses
+            // 1. Total Students: Count unique students across all courses this instructor teaches
             const studentCount = await pool.request()
                 .input('id', sql.Int, id)
                 .query(`
@@ -17,7 +29,7 @@ const getStats = async (req, res) => {
                     WHERE c.InstructorID = @id
                 `);
             
-            // 2. Average GPA of students in their courses
+            // 2. Average GPA: Get the performance average of all students in their courses
             const avgGPA = await pool.request()
                 .input('id', sql.Int, id)
                 .query(`
@@ -28,7 +40,7 @@ const getStats = async (req, res) => {
                     WHERE c.InstructorID = @id
                 `);
             
-            // 3. Pending Submissions in their courses
+            // 3. Pending Reviews: Count submissions that haven't been graded yet (Score is NULL)
             const pending = await pool.request()
                 .input('id', sql.Int, id)
                 .query(`
@@ -39,19 +51,23 @@ const getStats = async (req, res) => {
                     WHERE c.InstructorID = @id AND sub.Score IS NULL
                 `);
 
+            // Assemble the data for the frontend display
             stats = [
                 { label: 'Total Students', val: studentCount.recordset[0].total.toString(), icon: 'Users', color: 'text-blue-500', bg: 'bg-blue-500/10', path: '/instructor/students' },
                 { label: 'Avg Performance', val: (avgGPA.recordset[0].avg || 0).toFixed(2), icon: 'Award', color: 'text-purple-500', bg: 'bg-purple-500/10', path: '/instructor/students' },
                 { label: 'Pending Reviews', val: pending.recordset[0].total.toString(), icon: 'ClipboardList', color: 'text-cyan-500', bg: 'bg-cyan-500/10', path: '/instructor/submissions' }
             ];
 
+        // ---------------------------------------------------------
+        // ROLE: ASSISTANT (Helping in courses)
+        // ---------------------------------------------------------
         } else if (type === 'Assistant') {
-            // 1. Assigned Courses
+            // 1. Assigned Courses: Count how many courses this assistant is supporting
             const courses = await pool.request()
                 .input('id', sql.Int, id)
                 .query("SELECT COUNT(*) as total FROM Course_Assistants WHERE AssistantID = @id");
             
-            // 2. Pending to grade (Submissions in their courses where score is null)
+            // 2. Unscored Tasks: Count submissions in assigned courses that still need a grade
             const pending = await pool.request()
                 .input('id', sql.Int, id)
                 .query(`
@@ -68,19 +84,21 @@ const getStats = async (req, res) => {
                 { label: 'Active Status', val: 'Online', icon: 'Activity', color: 'text-green-500', bg: 'bg-green-500/10', path: '/assistant' }
             ];
 
+        // ---------------------------------------------------------
+        // ROLE: STUDENT (Learning in courses)
+        // ---------------------------------------------------------
         } else {
-            // Student
-            // 1. Enrolled Courses
+            // 1. Registered Courses: How many courses the student is currently enrolled in
             const courses = await pool.request()
                 .input('id', sql.Int, id)
                 .query("SELECT COUNT(*) as total FROM Enrollment WHERE StudentID = @id");
             
-            // 2. GPA
+            // 2. GPA: The student's current Grade Point Average from their profile
             const studentInfo = await pool.request()
                 .input('id', sql.Int, id)
                 .query("SELECT GPA FROM Students WHERE UserID = @id");
             
-            // 3. Pending Assignments
+            // 3. Pending Tasks: Count assignments that have NOT been submitted yet
             const pending = await pool.request()
                 .input('id', sql.Int, id)
                 .query(`
@@ -98,7 +116,9 @@ const getStats = async (req, res) => {
             ];
         }
 
+        // Return the formatted statistics to the UI
         res.json(stats);
+
     } catch (err) {
         console.error("Get Dashboard Stats Error:", err);
         res.status(500).json({ message: "An internal server error occurred while fetching dashboard stats." });

@@ -1,14 +1,21 @@
+/**
+ * STUDENT CONTROLLER
+ * Manages all student-specific operations including viewing courses, 
+ * submitting assignments, and checking grades.
+ */
 const { sql, getPool } = require('../config/db');
 const { success, error, badRequest, notFound } = require('../utils/responseHandler');
 
 /**
- * GET /api/student/dashboard
+ * GET STUDENT DASHBOARD
+ * Compiles a summary of the student's academic profile (GPA, enrolled courses, pending tasks).
  */
 const getDashboard = async (req, res) => {
     try {
         const userID = req.user.id;
         const pool = await getPool();
 
+        // 1. Fetch Profile Info: Join Users and Students table for a complete profile
         const userResult = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
@@ -21,10 +28,13 @@ const getDashboard = async (req, res) => {
         if (userResult.recordset.length === 0) return notFound(res, "Student not found.");
 
         const student = userResult.recordset[0];
+        
+        // 2. Count Enrolled Courses
         const coursesResult = await pool.request()
             .input('userID', sql.Int, userID)
             .query('SELECT COUNT(*) AS courseCount FROM Enrollment WHERE StudentID = @userID');
 
+        // 3. Count Pending Tasks: Assignments in enrolled courses without a submission
         const pendingResult = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
@@ -35,6 +45,7 @@ const getDashboard = async (req, res) => {
                 WHERE s.SubID IS NULL
             `);
 
+        // Return combined data
         return success(res, {
             fullName: student.FullName,
             email: student.Email,
@@ -51,13 +62,15 @@ const getDashboard = async (req, res) => {
 };
 
 /**
- * GET /api/student/courses
+ * GET MY COURSES
+ * Lists all courses the student is currently enrolled in.
  */
 const getMyCourses = async (req, res) => {
     try {
         const userID = req.user.id;
         const pool = await getPool();
 
+        // Join Enrollment with Course and Instructor details
         const result = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
@@ -75,7 +88,8 @@ const getMyCourses = async (req, res) => {
 };
 
 /**
- * GET /api/student/courses/:courseId/content
+ * GET COURSE CONTENT
+ * Fetches the full syllabus structure (Weeks, Materials, Lectures, Assignments) for a course.
  */
 const getCourseContent = async (req, res) => {
     try {
@@ -83,22 +97,26 @@ const getCourseContent = async (req, res) => {
         const userID = req.user.id;
         const pool = await getPool();
 
-        // Weeks + Materials + Lectures
+        // 1. Fetch Weeks: Get the organized time structure of the course
         const weeksRes = await pool.request()
             .input('courseID', sql.Int, courseId)
             .query('SELECT Week_ID AS WeekID, Week_Number AS WeekNumber, Title FROM StudyWeek WHERE CourseID = @courseID ORDER BY Week_Number');
 
         const weeks = [];
+        // Loop through each week to fetch nested materials and lectures
         for (const week of weeksRes.recordset) {
+            // Get files (PDFs, PPTs) for this week
             const mats = await pool.request().input('wId', sql.Int, week.WeekID).query('SELECT Material_ID AS MaterialID, Title, Type, FileURL FROM Material WHERE Week_ID = @wId');
+            // Get scheduled class sessions for this week
             const lecs = await pool.request().input('wId', sql.Int, week.WeekID).query('SELECT LectureID, Title, Date, Start_Time, End_Time FROM Lecture WHERE Week_ID = @wId ORDER BY Date');
             weeks.push({ ...week, materials: mats.recordset, lectures: lecs.recordset });
         }
 
-        // Course Info
+        // 2. Fetch Course Info & Instructor
         const courseRes = await pool.request().input('cId', sql.Int, courseId).query('SELECT c.*, u.FullName AS InstructorName FROM Course c LEFT JOIN Users u ON c.InstructorID = u.UserID WHERE c.CourseID = @cId');
         if (courseRes.recordset.length === 0) return notFound(res, "Course not found.");
 
+        // 3. Fetch Assignments for this course
         const assignments = await pool.request().input('cId', sql.Int, courseId).query('SELECT * FROM Assignment WHERE CourseID = @cId ORDER BY Deadline');
 
         return success(res, { course: courseRes.recordset[0], weeks, assignments: assignments.recordset });
@@ -108,13 +126,15 @@ const getCourseContent = async (req, res) => {
 };
 
 /**
- * GET /api/student/assignments
+ * GET ASSIGNMENTS
+ * Fetches all assignments across all courses, including submission status and scores.
  */
 const getAssignments = async (req, res) => {
     try {
         const userID = req.user.id;
         const pool = await getPool();
 
+        // Complex query to check if each assignment has a corresponding entry in the Submission table
         const result = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
@@ -136,19 +156,21 @@ const getAssignments = async (req, res) => {
 };
 
 /**
- * POST /api/student/assignments/submit
+ * SUBMIT ASSIGNMENT
+ * Uploads a student's file or text response for a specific task.
  */
 const submitAssignment = async (req, res) => {
     try {
         const { assignmentId, submissionContent } = req.body;
         const userID = req.user.id;
+        // The file is handled by 'multer' middleware before reaching this function
         const filePath = req.file ? `/uploads/submissions/${req.file.filename}` : null;
 
         if (!assignmentId) return badRequest(res, "assignmentId is required.");
 
         const pool = await getPool();
 
-        // Check if already submitted
+        // 1. Duplicate Check: Ensure students don't submit twice if not allowed
         const existing = await pool.request()
             .input('aId', sql.Int, assignmentId)
             .input('sId', sql.Int, userID)
@@ -156,6 +178,7 @@ const submitAssignment = async (req, res) => {
 
         if (existing.recordset.length > 0) return badRequest(res, "You have already submitted this assignment.");
 
+        // 2. Insert Submission: Save the file path and text content
         await pool.request()
             .input('aId', sql.Int, assignmentId)
             .input('sId', sql.Int, userID)
@@ -171,13 +194,15 @@ const submitAssignment = async (req, res) => {
 };
 
 /**
- * GET /api/student/grades
+ * GET GRADES
+ * Fetches the official grade report for all courses.
  */
 const getGrades = async (req, res) => {
     try {
         const userID = req.user.id;
         const pool = await getPool();
 
+        // Fetching pre-calculated totals from the Course_Grades view/table
         const result = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
@@ -199,7 +224,8 @@ const getGrades = async (req, res) => {
 };
 
 /**
- * GET /api/student/courses/:courseId/materials
+ * GET COURSE MATERIALS
+ * Fetches standalone supplemental files for a course.
  */
 const getCourseMaterials = async (req, res) => {
     try {
@@ -213,7 +239,8 @@ const getCourseMaterials = async (req, res) => {
 };
 
 /**
- * GET /api/student/courses/:courseId/announcements
+ * GET ANNOUNCEMENTS
+ * Retrieves official updates posted by instructors or assistants for a course.
  */
 const getCourseAnnouncements = async (req, res) => {
     try {
@@ -227,13 +254,15 @@ const getCourseAnnouncements = async (req, res) => {
 };
 
 /**
- * GET /api/student/calendar
+ * GET CALENDAR EVENTS
+ * Aggregates assignments and lectures into a single chronological list for the calendar view.
  */
 const getCalendarEvents = async (req, res) => {
     try {
         const userID = req.user.id;
         const pool = await getPool();
 
+        // 1. Get Assignment Deadlines
         const assignments = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
@@ -246,6 +275,7 @@ const getCalendarEvents = async (req, res) => {
                 WHERE e.StudentID = @userID
             `);
 
+        // 2. Get Scheduled Lectures
         const lectures = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
@@ -258,6 +288,7 @@ const getCalendarEvents = async (req, res) => {
                 WHERE e.StudentID = @userID
             `);
 
+        // Merge both arrays for the frontend
         return success(res, [...assignments.recordset, ...lectures.recordset]);
     } catch (err) {
         return error(res, "Failed to fetch calendar events", 500, err);
@@ -265,7 +296,8 @@ const getCalendarEvents = async (req, res) => {
 };
 
 /**
- * PUT /api/student/profile
+ * UPDATE PROFILE
+ * Allows students to keep their contact info updated.
  */
 const updateProfile = async (req, res) => {
     try {
@@ -273,6 +305,7 @@ const updateProfile = async (req, res) => {
         const userID = req.user.id;
         const pool = await getPool();
 
+        // Use ISNULL to only update fields that were actually provided
         await pool.request()
             .input('userID', sql.Int, userID)
             .input('fullName', sql.VarChar, fullName)
@@ -286,12 +319,15 @@ const updateProfile = async (req, res) => {
 };
 
 /**
- * GET /api/student/courses/:courseId/participants
+ * GET COURSE PARTICIPANTS
+ * Shows a roster of everyone in the course (Instructor, Assistants, and Classmates).
  */
 const getCourseParticipants = async (req, res) => {
     try {
         const { courseId } = req.params;
         const pool = await getPool();
+        
+        // Uses UNION to pull people from 3 different relationship tables into one list
         const result = await pool.request()
             .input('cId', sql.Int, courseId)
             .query(`

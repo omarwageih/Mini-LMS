@@ -1,55 +1,68 @@
+/**
+ * STUDENT ROUTES
+ * Defines the API endpoints for Student access.
+ * These routes allow students to view materials, submit work, and check progress.
+ */
 const express = require('express');
 const router = express.Router();
+
+// Middleware: For security and enrollment verification
 const { verifyToken, requireRole, requireEnrollment } = require('../middleware/authMiddleware');
 const { upload } = require('../middleware/upload');
+const { validate, updateProfileSchema } = require('../middleware/validation');
+
+// Controllers: Business logic for student actions
 const {
-    getDashboard,
-    getMyCourses,
-    getCourseContent,
-    getAssignments,
-    submitAssignment,
-    getGrades,
-    getCourseMaterials,
-    getCourseAnnouncements,
-    getCalendarEvents,
-    updateProfile,
-    getCourseParticipants
+    getDashboard, getMyCourses, getCourseContent, getAssignments,
+    submitAssignment, getGrades, getCourseMaterials, getCourseAnnouncements,
+    getCalendarEvents, updateProfile, getCourseParticipants
 } = require('../controllers/studentController');
+
 const { getCourseAttendance, getCourseQuizzes } = require('../controllers/courseController');
 const { getDiscussionPosts, createDiscussionPost, getDiscussionReplies, createDiscussionReply } = require('../controllers/discussionController');
 
-// All routes require Student role
+/**
+ * GLOBAL MIDDLEWARE
+ * All routes here require the user to be a logged-in 'Student'.
+ */
 router.use(verifyToken, requireRole('Student'));
 
-const { validate, updateProfileSchema } = require('../middleware/validation');
+// ---------------------------------------------------------
+// DASHBOARD & PROFILE
+// ---------------------------------------------------------
+router.get('/dashboard', getDashboard); // Get summary of GPA, courses, and pending tasks
+router.put('/profile', validate(updateProfileSchema), updateProfile); // Update contact info
 
-// ===== Dashboard & Profile =====
-router.get('/dashboard', getDashboard);
-router.put('/profile', validate(updateProfileSchema), updateProfile);
+// ---------------------------------------------------------
+// COURSE INTERACTION
+// ---------------------------------------------------------
+// requireEnrollment ensures students can only see data for courses they are actually registered for
+router.get('/courses', getMyCourses); // List all their courses
+router.get('/courses/:courseId/content', requireEnrollment, getCourseContent); // View syllabus/weeks
+router.get('/courses/:courseId/materials', requireEnrollment, getCourseMaterials); // Standalone files
+router.get('/courses/:courseId/announcements', requireEnrollment, getCourseAnnouncements); // Class updates
+router.get('/courses/:courseId/participants', requireEnrollment, getCourseParticipants); // See classmates/staff
+router.get('/courses/:courseId/attendance', requireEnrollment, getCourseAttendance); // Check their own attendance
+router.get('/courses/:courseId/quizzes', requireEnrollment, getCourseQuizzes); // See their own quiz results
 
-// ===== Courses =====
-router.get('/courses', getMyCourses);
-router.get('/courses/:courseId/content', requireEnrollment, getCourseContent);
-router.get('/courses/:courseId/materials', requireEnrollment, getCourseMaterials);
-router.get('/courses/:courseId/announcements', requireEnrollment, getCourseAnnouncements);
-router.get('/courses/:courseId/participants', requireEnrollment, getCourseParticipants);
-router.get('/courses/:courseId/attendance', requireEnrollment, getCourseAttendance);
-router.get('/courses/:courseId/quizzes', requireEnrollment, getCourseQuizzes);
+// ---------------------------------------------------------
+// ASSIGNMENTS & GRADES
+// ---------------------------------------------------------
+router.get('/assignments', getAssignments); // View all upcoming deadlines
+router.post('/assignments/submit', upload.single('file'), requireEnrollment, submitAssignment); // Upload homework
+router.get('/grades', getGrades); // View full grade report
 
-// ===== Assignments =====
-router.get('/assignments', getAssignments);
-router.post('/assignments/submit', upload.single('file'), requireEnrollment, submitAssignment);
+// ---------------------------------------------------------
+// CALENDAR & PLANNING
+// ---------------------------------------------------------
+router.get('/calendar', getCalendarEvents); // Get merged list of lectures and deadlines
 
-// ===== Grades =====
-router.get('/grades', getGrades);
-
-// ===== Calendar =====
-router.get('/calendar', getCalendarEvents);
-
-// ===== Discussion Forums =====
+// ---------------------------------------------------------
+// DISCUSSION FORUMS
+// ---------------------------------------------------------
 router.get('/discussions/:courseId', requireEnrollment, getDiscussionPosts);
 router.post('/discussions', requireEnrollment, createDiscussionPost);
-router.get('/discussions/replies/:postId', getDiscussionReplies); // Note: PostID check would be more complex, keeping simple for now
+router.get('/discussions/replies/:postId', getDiscussionReplies);
 router.post('/discussions/reply', createDiscussionReply);
 
 module.exports = router;

@@ -1,11 +1,14 @@
+/**
+ * GLOBAL HELPER UTILITIES
+ * Contains reusable functions used across multiple controllers for common tasks
+ * like logging, sending alerts, and cleaning up files.
+ */
 const { sql, getPool } = require('../config/db');
 
 /**
- * Log an action to the AuditLog table.
- * @param {number|null} userId - The user performing the action
- * @param {string} action - e.g. 'LOGIN', 'GRADE_SUBMISSION', 'CREATE_COURSE'
- * @param {string} details - Free-text description
- * @param {string} ipAddress - Client IP
+ * AUDIT LOGGING
+ * Records every sensitive action (Login, Delete, Grade) into a permanent ledger.
+ * This is crucial for security audits and tracking who did what and when.
  */
 const logAudit = async (userId, action, details = '', ipAddress = '') => {
     try {
@@ -22,16 +25,14 @@ const logAudit = async (userId, action, details = '', ipAddress = '') => {
 };
 
 /**
- * Create an in-app notification for a user.
- * @param {number} userId - Target user
- * @param {string} type - 'grade', 'announcement', 'assignment', 'discussion', 'system'
- * @param {string} title - Notification title
- * @param {string} message - Notification body
- * @param {string} link - Optional navigation link
+ * CREATE NOTIFICATION
+ * 1. Saves an alert message to the database so the user sees it when they log in.
+ * 2. Uses Socket.io to "push" the alert immediately if the user is currently online.
  */
 const createNotification = async (userId, type, title, message = '', link = '') => {
     try {
         const pool = await getPool();
+        // Save to DB
         const result = await pool.request()
             .input('UserID', sql.Int, userId)
             .input('Type', sql.NVarChar, type)
@@ -42,9 +43,9 @@ const createNotification = async (userId, type, title, message = '', link = '') 
                     OUTPUT INSERTED.NotificationID, INSERTED.CreatedAt, INSERTED.IsRead
                     VALUES (@UserID, @Type, @Title, @Message, @Link)`);
 
-        // Real-time emit
+        // Real-time Push via WebSocket
         try {
-            const { getIO } = require('../socket');
+            const { getIO } = require('../socket'); // Lazy-load to avoid circular dependency
             const io = getIO();
             const notificationData = {
                 NotificationID: result.recordset[0].NotificationID,
@@ -56,36 +57,45 @@ const createNotification = async (userId, type, title, message = '', link = '') 
                 IsRead: result.recordset[0].IsRead,
                 CreatedAt: result.recordset[0].CreatedAt
             };
+            // Send ONLY to the specific user's room
             io.to(`user_${userId}`).emit('notification', notificationData);
         } catch (socketErr) {
-            console.error('Socket emit error:', socketErr.message);
+            console.error('Socket emit error (Notification still saved in DB):', socketErr.message);
         }
     } catch (err) {
-        console.error('Notification create error:', err.message);
+        console.error('Notification creation failed:', err.message);
     }
 };
 
 const fs = require('fs');
 const path = require('path');
 
+/**
+ * SECURE FILE DELETION
+ * Removes a file from the server's hard drive.
+ * Includes security checks to prevent "Path Traversal" attacks (deleting system files).
+ */
 const deleteFile = (relativePath) => {
     if (!relativePath) return;
     try {
+        // Define the boundary: Files can only be deleted inside the 'uploads' folder
         const baseDir = path.join(__dirname, '..', 'uploads');
-        // Resolve the absolute path and ensure it's within the uploads directory
+        
+        // Resolve path and verify it stays inside the boundary
         const absolutePath = path.resolve(path.join(__dirname, '..', relativePath));
         
         if (!absolutePath.startsWith(baseDir)) {
-            console.error(`Security blocked deletion attempt outside uploads: ${absolutePath}`);
+            console.error(`SECURITY ALERT: Blocked attempt to delete file outside uploads: ${absolutePath}`);
             return;
         }
 
+        // Physically remove the file if it exists
         if (fs.existsSync(absolutePath)) {
             fs.unlinkSync(absolutePath);
-            console.log(`Deleted file: ${absolutePath}`);
+            console.log(`System cleaned up file: ${absolutePath}`);
         }
     } catch (err) {
-        console.error(`Error deleting file ${relativePath}:`, err.message);
+        console.error(`File deletion error for ${relativePath}:`, err.message);
     }
 };
 

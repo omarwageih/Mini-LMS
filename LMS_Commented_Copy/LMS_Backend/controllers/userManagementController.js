@@ -1,14 +1,21 @@
+/**
+ * USER MANAGEMENT CONTROLLER
+ * Handles administrative tasks for instructors, including managing students,
+ * teaching assistants, and course enrollments.
+ */
 const { sql, getPool } = require('../config/db');
-const bcrypt = require('bcryptjs');
-const { logAudit, createNotification } = require('../utils/helpers');
-const { success, error, badRequest } = require('../utils/responseHandler');
+const bcrypt = require('bcryptjs'); // For secure password hashing
+const { logAudit, createNotification } = require('../utils/helpers'); // Utilities for logging and alerts
+const { success, error, badRequest } = require('../utils/responseHandler'); // API response helpers
 
 /**
- * GET /api/instructor/assistants
+ * FETCH ASSISTANTS
+ * Retrieves a list of all Teaching Assistants in the system.
  */
 const getAssistants = async (req, res) => {
     try {
         const pool = await getPool();
+        // Joins Users and Assistants table to get full details and office locations
         const result = await pool.request().query(`
             SELECT u.UserID, u.UserID AS AssistantID, u.FullName, u.Email, a.Office_Location
             FROM Users u
@@ -22,19 +29,26 @@ const getAssistants = async (req, res) => {
 };
 
 /**
- * POST /api/instructor/assistants
+ * ADD ASSISTANT
+ * Creates a new Assistant user account. Uses a Transaction to ensure data consistency
+ * across the 'Users' and 'Assistants' tables.
  */
 const addAssistant = async (req, res) => {
     const { fullName, email, password } = req.body;
+    
+    // 1. Validation
     if (!fullName || !email || !password) return badRequest(res, "fullName, email, and password are required.");
 
     try {
         const pool = await getPool();
+        // 2. Transaction Start: Ensures both inserts succeed or both fail
         const transaction = new sql.Transaction(pool);
         await transaction.begin();
 
         try {
             const request = new sql.Request(transaction);
+            
+            // 3. Email Check: Prevent duplicate accounts
             const existing = await request.input('email', sql.VarChar, email).query('SELECT 1 FROM Users WHERE Email = @email');
 
             if (existing.recordset.length > 0) {
@@ -42,7 +56,10 @@ const addAssistant = async (req, res) => {
                 return badRequest(res, "Email already exists.");
             }
 
+            // 4. Hashing: Securely store the password
             const hashedPassword = await bcrypt.hash(password, 10);
+            
+            // 5. Insert into Users Table
             const userResult = await request
                 .input('fullName', sql.VarChar, fullName)
                 .input('emailParam', sql.VarChar, email)
@@ -51,14 +68,19 @@ const addAssistant = async (req, res) => {
                 .query(`INSERT INTO Users (FullName, Email, Password, UserType) OUTPUT INSERTED.UserID VALUES (@fullName, @emailParam, @password, @userType)`);
 
             const userID = userResult.recordset[0].UserID;
+            
+            // 6. Insert into Assistants Table: Links the user to the assistant role
             await request.input('userID', sql.Int, userID).query('INSERT INTO Assistants (UserID) VALUES (@userID)');
 
+            // 7. Commit: Save changes permanently
             await transaction.commit();
+            
+            // 8. Audit Log
             await logAudit(req.user.id, 'ADD_ASSISTANT', `Added assistant: ${fullName} (${email})`, req.ip);
 
             return success(res, { message: "Assistant added successfully", userID }, "Success", 201);
         } catch (txErr) {
-            await transaction.rollback();
+            await transaction.rollback(); // Undo everything on error
             throw txErr;
         }
     } catch (err) {
@@ -67,7 +89,8 @@ const addAssistant = async (req, res) => {
 };
 
 /**
- * DELETE /api/instructor/assistants/:id
+ * DELETE ASSISTANT
+ * Permanently removes an assistant and their course assignments.
  */
 const deleteAssistant = async (req, res) => {
     const { id } = req.params;
@@ -80,8 +103,11 @@ const deleteAssistant = async (req, res) => {
             const request = new sql.Request(transaction);
             request.input('userID', sql.Int, id);
 
+            // 1. Remove from all course assignments first (Foreign Key cleanup)
             await request.query('DELETE FROM Course_Assistants WHERE AssistantID = @userID');
+            // 2. Remove role-specific profile
             await request.query('DELETE FROM Assistants WHERE UserID = @userID');
+            // 3. Remove main user account
             await request.query("DELETE FROM Users WHERE UserID = @userID AND UserType = 'Assistant'");
 
             await transaction.commit();
@@ -97,7 +123,8 @@ const deleteAssistant = async (req, res) => {
 };
 
 /**
- * GET /api/instructor/students
+ * FETCH STUDENTS
+ * Retrieves a list of all registered students.
  */
 const getStudents = async (req, res) => {
     try {
@@ -116,7 +143,8 @@ const getStudents = async (req, res) => {
 };
 
 /**
- * POST /api/instructor/students
+ * ADD STUDENT
+ * Manual registration for students (typically by an instructor).
  */
 const addStudent = async (req, res) => {
     const { fullName, email, password, studentCode } = req.body;
@@ -145,6 +173,7 @@ const addStudent = async (req, res) => {
                 .query(`INSERT INTO Users (FullName, Email, Password, UserType) OUTPUT INSERTED.UserID VALUES (@fullName, @emailParam, @password, @userType)`);
 
             const userID = userResult.recordset[0].UserID;
+            // Link to the student profile and store their unique ID code
             await request.input('userID', sql.Int, userID).input('studentCode', sql.VarChar, studentCode || null).query('INSERT INTO Students (UserID, StudentCode) VALUES (@userID, @studentCode)');
 
             await transaction.commit();
@@ -161,7 +190,8 @@ const addStudent = async (req, res) => {
 };
 
 /**
- * DELETE /api/instructor/students/:id
+ * DELETE STUDENT
+ * Heavy operation: Deletes a student and ALL their related data (Grades, Attendance, Submissions).
  */
 const deleteStudent = async (req, res) => {
     const { id } = req.params;
@@ -174,7 +204,7 @@ const deleteStudent = async (req, res) => {
             const request = new sql.Request(transaction);
             request.input('userID', sql.Int, id);
 
-            // Manual cascade for tables without formal CASCADE constraints
+            // Manual cascade: We must clean up every table that references this student's ID
             await request.query('DELETE FROM Submission WHERE StudentID = @userID');
             await request.query('DELETE FROM DiscussionReplies WHERE UserID = @userID');
             await request.query('DELETE FROM DiscussionPosts WHERE UserID = @userID');
@@ -198,7 +228,8 @@ const deleteStudent = async (req, res) => {
 };
 
 /**
- * POST /api/instructor/assistants/assign-course
+ * ASSIGN ASSISTANT TO COURSE
+ * Links an Assistant to a course so they can view students and grade work.
  */
 const assignAssistantToCourse = async (req, res) => {
     const { assistantId, courseId } = req.body;
@@ -206,6 +237,7 @@ const assignAssistantToCourse = async (req, res) => {
 
     try {
         const pool = await getPool();
+        // Check if the assignment already exists
         const existing = await pool.request()
             .input('assistantID', sql.Int, assistantId)
             .input('courseID', sql.Int, courseId)
@@ -213,6 +245,7 @@ const assignAssistantToCourse = async (req, res) => {
 
         if (existing.recordset.length > 0) return badRequest(res, "Assistant already assigned to this course.");
 
+        // Create the link
         await pool.request()
             .input('assistantID', sql.Int, assistantId)
             .input('courseID', sql.Int, courseId)
@@ -226,7 +259,8 @@ const assignAssistantToCourse = async (req, res) => {
 };
 
 /**
- * POST /api/instructor/students/enroll
+ * ENROLL STUDENT
+ * Officially registers a student into a course.
  */
 const enrollStudent = async (req, res) => {
     const { studentId, courseId } = req.body;
@@ -234,6 +268,7 @@ const enrollStudent = async (req, res) => {
 
     try {
         const pool = await getPool();
+        // 1. Prevent duplicate enrollment
         const existing = await pool.request()
             .input('studentID', sql.Int, studentId)
             .input('courseID', sql.Int, courseId)
@@ -241,11 +276,13 @@ const enrollStudent = async (req, res) => {
 
         if (existing.recordset.length > 0) return badRequest(res, "Student already enrolled in this course.");
 
+        // 2. Insert record
         await pool.request()
             .input('studentID', sql.Int, studentId)
             .input('courseID', sql.Int, courseId)
             .query('INSERT INTO Enrollment (StudentID, CourseID) VALUES (@studentID, @courseID)');
 
+        // 3. Notification: Alert the student that they've been added to a new course
         try {
             const courseResult = await pool.request().input('cId', sql.Int, courseId).query('SELECT Name FROM Course WHERE CourseID = @cId');
             const courseName = courseResult.recordset[0]?.Name || 'a new course';

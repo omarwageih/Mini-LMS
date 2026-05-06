@@ -1,13 +1,20 @@
+/**
+ * DISCUSSION CONTROLLER
+ * Manages course forum functionality, allowing students and staff to post questions
+ * and reply to each other.
+ */
 const { sql, getPool } = require('../config/db');
 
 /**
- * GET /api/student/discussions/:courseId
- * Fetch all posts for a course.
+ * FETCH DISCUSSION POSTS
+ * Retrieves all main forum topics for a specific course.
  */
 const getDiscussionPosts = async (req, res) => {
     try {
         const { courseId } = req.params;
         const pool = await getPool();
+        
+        // Fetch posts joined with user details to show who posted them
         const result = await pool.request()
             .input('CourseID', sql.Int, courseId)
             .query(`
@@ -26,20 +33,23 @@ const getDiscussionPosts = async (req, res) => {
 };
 
 /**
- * POST /api/student/discussions
- * Create a new post.
+ * CREATE DISCUSSION POST
+ * Starts a new thread/topic in the course forum.
  */
 const createDiscussionPost = async (req, res) => {
     try {
         const { courseId, title, content } = req.body;
-        const userID = req.user.id;
+        const userID = req.user.id; // From the auth token
         const pool = await getPool();
+
+        // Save the new post to the database
         await pool.request()
             .input('CourseID', sql.Int, courseId)
             .input('UserID', sql.Int, userID)
             .input('Title', sql.NVarChar, title)
             .input('Content', sql.NVarChar, content)
             .query(`INSERT INTO DiscussionPosts (CourseID, UserID, Title, Content) VALUES (@CourseID, @UserID, @Title, @Content)`);
+        
         res.json({ message: "Post created successfully" });
     } catch (err) {
         console.error("Create Discussion Post Error:", err);
@@ -48,13 +58,15 @@ const createDiscussionPost = async (req, res) => {
 };
 
 /**
- * GET /api/student/discussions/replies/:postId
- * Fetch all replies for a post.
+ * FETCH DISCUSSION REPLIES
+ * Retrieves all comments/responses for a specific post.
  */
 const getDiscussionReplies = async (req, res) => {
     try {
         const { postId } = req.params;
         const pool = await getPool();
+        
+        // Fetch replies sorted by time (oldest first for chronological reading)
         const result = await pool.request()
             .input('PostID', sql.Int, postId)
             .query(`
@@ -72,8 +84,8 @@ const getDiscussionReplies = async (req, res) => {
 };
 
 /**
- * POST /api/student/discussions/reply
- * Create a new reply.
+ * CREATE DISCUSSION REPLY
+ * Adds a comment to an existing post and notifies the post owner.
  */
 const createDiscussionReply = async (req, res) => {
     try {
@@ -81,27 +93,33 @@ const createDiscussionReply = async (req, res) => {
         const userID = req.user.id;
         const pool = await getPool();
         
-        // Insert reply
+        // 1. Database Insert: Save the reply
         await pool.request()
             .input('PostID', sql.Int, postId)
             .input('UserID', sql.Int, userID)
             .input('Content', sql.NVarChar, content)
             .query(`INSERT INTO DiscussionReplies (PostID, UserID, Content) VALUES (@PostID, @UserID, @Content)`);
 
-        // Notify post owner
+        // 2. Notification System: Alert the person who started the post
         try {
+            // Find who wrote the original post
             const postResult = await pool.request()
                 .input('pId', sql.Int, postId)
                 .query('SELECT UserID, Title FROM DiscussionPosts WHERE PostID = @pId');
             
             const post = postResult.recordset[0];
+            
+            // If the replier is not the same person as the poster, send a notification
             if (post && post.UserID !== userID) {
                 const { createNotification } = require('../utils/helpers');
+                
+                // Get the name of the person who replied
                 const userResult = await pool.request()
                     .input('uId', sql.Int, userID)
                     .query('SELECT FullName FROM Users WHERE UserID = @uId');
                 const replierName = userResult.recordset[0]?.FullName || 'Someone';
 
+                // Send the alert
                 await createNotification(
                     post.UserID,
                     'discussion',
@@ -111,6 +129,7 @@ const createDiscussionReply = async (req, res) => {
                 );
             }
         } catch (notifErr) {
+            // We don't want to crash the whole reply process if just the notification fails
             console.error("Discussion reply notification failed:", notifErr.message);
         }
 

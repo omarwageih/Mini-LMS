@@ -1,48 +1,53 @@
 /**
- * Database Configuration & Connection Pool
- * This file handles the connection to the SQL Server database using mssql.
+ * DATABASE CONNECTION CONFIGURATION
+ * This file establishes the bridge between the Node.js application and 
+ * the Microsoft SQL Server database.
  */
 
 const sql = require('mssql');
 
-// Determine authentication mode based on environment variables
-// If DB_USER is empty, the app will attempt to use Windows Authentication (NTLM/Trusted Connection)
+// 1. AUTHENTICATION MODE DETECTION
+// We support two ways to connect:
+// A. Windows Authentication (using your computer's login) - used if DB_USER is empty.
+// B. SQL Authentication (using a username/password) - used if DB_USER is provided.
 const useWindowsAuth = !process.env.DB_USER || process.env.DB_USER.trim() === '';
 
+// 2. CONNECTION PARAMETERS
 const config = {
-    server: process.env.DB_SERVER || 'localhost\\SQLEXPRESS', // Server instance name
-    database: process.env.DB_NAME || 'MiniLMS',              // Database name
-    port: parseInt(process.env.DB_PORT) || 1433,              // Default SQL Server port
+    server: process.env.DB_SERVER || 'localhost\\SQLEXPRESS', // The network address of the SQL instance
+    database: process.env.DB_NAME || 'MiniLMS',              // The specific database we want to use
+    port: parseInt(process.env.DB_PORT) || 1433,              // The communication port (1433 is standard)
     options: {
-        encrypt: false,                                       // Set to true if using Azure or encryption
-        trustServerCertificate: true,                        // Required for self-signed certificates in dev
-        trustedConnection: useWindowsAuth                     // Flag for Windows Auth
+        encrypt: false,                                       // Should be true for cloud-hosted DBs (like Azure)
+        trustServerCertificate: true,                        // Allows local dev connections without SSL certs
+        trustedConnection: useWindowsAuth                     // Enables Windows-native login logic
     }
 };
 
-// Only add SQL credentials when not using Windows Auth
+// Apply SQL-specific login details only if Windows Auth is NOT being used
 if (!useWindowsAuth) {
     config.user     = process.env.DB_USER;
     config.password = process.env.DB_PASSWORD;
 }
 
-let pool; // Singleton connection pool instance
-
 /**
- * Retrieves the database connection pool
- * Connects to the server if a pool doesn't exist yet.
- * @returns {Promise<sql.ConnectionPool>}
+ * CONNECTION POOL (SINGLETON)
+ * Opening a new connection for every single request is slow. 
+ * A "Pool" keeps several connections open and "recycles" them for better speed.
  */
+let pool; 
+
 const getPool = async () => {
     try {
+        // Only connect if we don't already have an active pool
         if (!pool) {
             pool = await sql.connect(config);
-            console.log(`✅ Connected to SQL Server (${useWindowsAuth ? 'Windows Auth' : 'SQL Auth'})`);
+            console.log(`✅ Database Linked successfully via ${useWindowsAuth ? 'Windows Authentication' : 'SQL Login'}`);
         }
         return pool;
     } catch (err) {
-        console.error('❌ DB Connection Error:', err.message);
-        throw err;
+        console.error('❌ Database Link Failed:', err.message);
+        throw err; // Rethrow to prevent app from running without a database
     }
 };
 

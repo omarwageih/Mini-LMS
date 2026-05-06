@@ -1,41 +1,45 @@
 /**
- * Socket.io Configuration
- * This file handles real-time communication between the server and clients.
- * It is primarily used for push notifications and instant UI updates.
+ * REAL-TIME COMMUNICATION (SOCKET.IO)
+ * This module enables "push" capabilities. Instead of the browser asking for updates
+ * every few seconds, the server can "push" data (like notifications) instantly 
+ * to the user.
  */
 
 const { Server } = require("socket.io");
 
-let io;
+let io; // Global variable to hold the socket instance
 
 /**
- * Initializes the Socket.io server
- * @param {http.Server} server - The HTTP server instance
+ * INITIALIZE SOCKET.IO
+ * Sets up the WebSocket server on top of the existing HTTP server.
  */
 const initSocket = (server) => {
     io = new Server(server, {
         cors: {
-            // Allow frontend to connect via WebSocket
+            // SECURITY: Only allow the frontend website to connect to this socket
             origin: process.env.FRONTEND_URL || "http://localhost:5173",
             methods: ["GET", "POST"],
             credentials: true
         }
     });
 
-    // Handle new client connections
+    // 1. Connection Event: Triggered whenever a user opens the LMS in their browser
     io.on("connection", (socket) => {
-        console.log("A user connected:", socket.id);
+        console.log("New WebSocket Connection Established:", socket.id);
 
-        // Listen for a 'join' event where a user joins a private room based on their ID
-        // This allows the server to send targeted notifications to specific users
+        /**
+         * ROOM JOINING
+         * To send a private notification to "User 5", the user joins a virtual room
+         * named "user_5". This keeps messages private to the intended recipient.
+         */
         socket.on("join", (userId) => {
             socket.join(`user_${userId}`);
-            console.log(`User ${userId} joined their room`);
+            console.log(`User ${userId} joined their private notification room`);
         });
 
-        // Handle client disconnection
+        // 2. Disconnect Event: Cleanup when user closes the tab
         socket.on("disconnect", () => {
-            console.log("User disconnected");
+            console.log("User disconnected from WebSocket");
         });
     });
 
@@ -43,12 +47,13 @@ const initSocket = (server) => {
 };
 
 /**
- * Returns the initialized Socket.io instance
- * Used by controllers to emit events from anywhere in the app
+ * ACCESSOR FUNCTION
+ * Allows other parts of the app (like NotificationController) to grab the
+ * socket instance and send messages without needing to pass the variable around.
  */
 const getIO = () => {
     if (!io) {
-        throw new Error("Socket.io not initialized!");
+        throw new Error("Socket.io not initialized! Call initSocket first.");
     }
     return io;
 };

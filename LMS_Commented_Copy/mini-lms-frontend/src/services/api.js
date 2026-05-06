@@ -1,5 +1,11 @@
+/**
+ * CENTRAL API SERVICE
+ * This file serves as the single "hub" for all communication between the 
+ * React frontend and the Node.js backend. It uses Axios for HTTP requests.
+ */
 import axios from 'axios';
 
+// The base URL where the backend is hosted
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const api = axios.create({
@@ -7,7 +13,11 @@ const api = axios.create({
     headers: { 'Content-Type': 'application/json' }
 });
 
-// Attach JWT token to every request
+/**
+ * REQUEST INTERCEPTOR
+ * Automatically attaches the JWT (security token) to the header of 
+ * every outgoing request if the user is logged in.
+ */
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('token');
     if (token) {
@@ -16,7 +26,8 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-// Handle 401 — try refresh token before logging out
+// TOKEN REFRESH LOGIC
+// Used to keep the user logged in even if their short-lived access token expires.
 let isRefreshing = false;
 let failedQueue = [];
 
@@ -28,6 +39,12 @@ const processQueue = (error, token = null) => {
     failedQueue = [];
 };
 
+/**
+ * RESPONSE INTERCEPTOR
+ * Intercepts every response coming back from the server.
+ * If a request fails with 401 (Unauthorized), it tries to refresh the token 
+ * automatically before giving up and logging the user out.
+ */
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
@@ -38,7 +55,7 @@ api.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        // Handle 401 Unauthorized
+        // Handle 401 Unauthorized (Expired Session)
         if (error.response.status === 401 && !originalRequest._retry) {
             const isAuthRequest = originalRequest.url.includes('/auth/refresh-token') || 
                                  originalRequest.url.includes('/auth/login');
@@ -48,6 +65,7 @@ api.interceptors.response.use(
             }
 
             if (isRefreshing) {
+                // If another request already started refreshing the token, wait for it
                 console.log("Token refresh in progress, queuing request:", originalRequest.url);
                 return new Promise((resolve, reject) => {
                     failedQueue.push({ resolve, reject });
@@ -73,6 +91,7 @@ api.interceptors.response.use(
                 const { data } = await axios.post(`${API_URL}/api/auth/refresh-token`, { refreshToken });
                 const newToken = data.token;
                 
+                // Save new token and resume original request
                 localStorage.setItem('token', newToken);
                 api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
                 originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -81,6 +100,7 @@ api.interceptors.response.use(
                 processQueue(null, newToken);
                 return api(originalRequest);
             } catch (refreshErr) {
+                // If refresh fails (e.g., refresh token expired), log out completely
                 console.error("Token refresh failed:", refreshErr.message);
                 processQueue(refreshErr, null);
                 localStorage.clear();
@@ -95,24 +115,22 @@ api.interceptors.response.use(
     }
 );
 
-// ===== Auth =====
+// ---------------------------------------------------------
+// AUTHENTICATION API
+// ---------------------------------------------------------
 export const authAPI = {
     login: (data) => api.post('/auth/login', data),
     register: (data) => api.post('/auth/register', data),
-    googleLogin: (data) => api.post('/auth/google-login', data),
     forgotPassword: (data) => api.post('/auth/forgot-password', data),
     resetPassword: (data) => api.post('/auth/reset-password', data),
     uploadProfilePic: (formData) => api.post('/auth/profile-picture', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: { 'Content-Type': 'multipart/form-data' } // Important for file uploads
     })
 };
 
-// ===== Dashboard =====
-export const dashboardAPI = {
-    getStats: () => api.get('/dashboard/stats')
-};
-
-// ===== Student =====
+// ---------------------------------------------------------
+// STUDENT API
+// ---------------------------------------------------------
 export const studentAPI = {
     getDashboard: () => api.get('/student/dashboard'),
     updateProfile: (data) => api.put('/student/profile', data),
@@ -127,7 +145,6 @@ export const studentAPI = {
     getCourseAnnouncements: (courseId) => api.get(`/student/courses/${courseId}/announcements`),
     getCourseParticipants: (courseId) => api.get(`/student/courses/${courseId}/participants`),
     getCalendarEvents: () => api.get('/student/calendar'),
-    // Discussions
     getDiscussionPosts: (courseId) => api.get(`/student/discussions/${courseId}`),
     createDiscussionPost: (data) => api.post('/student/discussions', data),
     getDiscussionReplies: (postId) => api.get(`/student/discussions/replies/${postId}`),
@@ -136,24 +153,22 @@ export const studentAPI = {
     getCourseQuizzes: (courseId) => api.get(`/student/courses/${courseId}/quizzes`)
 };
 
-// ===== Instructor =====
+// ---------------------------------------------------------
+// INSTRUCTOR API
+// ---------------------------------------------------------
 export const instructorAPI = {
-    // Assistants
     getAssistants: () => api.get('/instructor/assistants'),
     addAssistant: (data) => api.post('/instructor/assistants', data),
     deleteAssistant: (id) => api.delete(`/instructor/assistants/${id}`),
     assignAssistant: (data) => api.post('/instructor/assistants/assign-course', data),
-    // Students
     getStudents: () => api.get('/instructor/students'),
-    addStudent: (data) => api.post('/instructor/students', data),
+    addStudent: (data) => api.post('/instructor/students, data'),
     deleteStudent: (id) => api.delete(`/instructor/students/${id}`),
     enrollStudent: (data) => api.post('/instructor/students/enroll', data),
-    // Courses
     getCourses: () => api.get('/instructor/courses'),
     createCourse: (data) => api.post('/instructor/courses', data),
     getMyCourses: () => api.get('/instructor/my-courses'),
     getCourseContent: (courseId) => api.get(`/instructor/courses/${courseId}/content`),
-    // Content
     addWeek: (data) => api.post('/instructor/weeks', data),
     addMaterial: (formData) => api.post('/instructor/materials', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -161,23 +176,18 @@ export const instructorAPI = {
     addLecture: (data) => api.post('/instructor/lectures', data),
     deleteLecture: (id) => api.delete(`/instructor/lectures/${id}`),
     deleteWeek: (id) => api.delete(`/instructor/weeks/${id}`),
-    // Assignments
     createAssignment: (data) => api.post('/instructor/assignments', data),
     updateAssignment: (id, data) => api.put(`/instructor/assignments/${id}`, data),
     deleteAssignment: (id) => api.delete(`/instructor/assignments/${id}`),
-    // Submissions
     getSubmissions: (params) => api.get('/instructor/submissions', { params }),
     gradeSubmission: (data) => api.post('/instructor/submissions/grade', data),
-    // Stats & Tabs
     getCourseParticipants: (courseId) => api.get(`/instructor/courses/${courseId}/participants`),
     getCourseGrades: (courseId) => api.get(`/instructor/courses/${courseId}/grades`),
-    // Materials
     getCourseMaterials: (courseId) => api.get(`/instructor/courses/${courseId}/materials`),
     uploadCourseMaterial: (formData) => api.post('/instructor/courses/materials', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     }),
     deleteCourseMaterial: (id) => api.delete(`/instructor/courses/materials/${id}`),
-    // Announcements
     getAnnouncements: (courseId) => api.get(`/instructor/courses/${courseId}/announcements`),
     createAnnouncement: (data) => api.post('/instructor/courses/announcements', data),
     deleteAnnouncement: (id) => api.delete(`/instructor/announcements/${id}`),
@@ -186,7 +196,9 @@ export const instructorAPI = {
     getCourseQuizzes: (courseId) => api.get(`/instructor/courses/${courseId}/quizzes`)
 };
 
-// ===== Assistant =====
+// ---------------------------------------------------------
+// ASSISTANT API
+// ---------------------------------------------------------
 export const assistantAPI = {
     getCourses: () => api.get('/assistant/courses'),
     getCourseDetails: (courseId) => api.get(`/assistant/courses/${courseId}/details`),
@@ -208,9 +220,7 @@ export const assistantAPI = {
 
 export default api;
 
-// ===== Generic helpers used by older page imports =====
-// These allow pages that call apiGet('/instructor/...') to work
-// without needing to know which named API group to use.
+// Generic helper methods for simple one-off calls
 export const apiGet    = (url, params) => api.get(url, { params }).then(r => r.data);
 export const apiPost   = (url, data, config) => api.post(url, data, config).then(r => r.data);
 export const apiPut    = (url, data) => api.put(url, data).then(r => r.data);
