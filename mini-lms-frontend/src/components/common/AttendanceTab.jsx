@@ -15,7 +15,7 @@ const AttendanceTab = ({ courseId, role = 'student' }) => {
     const [attendance, setAttendance] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedLecture, setSelectedLecture] = useState(null);
+    const [selectedLectureId, setSelectedLectureId] = useState(null);
     const [showNewSession, setShowNewSession] = useState(false);
     const [newSession, setNewSession] = useState({ title: '', date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '11:00', weekId: '' });
     const [weeks, setWeeks] = useState([]);
@@ -42,15 +42,15 @@ const AttendanceTab = ({ courseId, role = 'student' }) => {
         loadAttendance();
     }, [courseId, role]);
 
-    const handleMark = async (lectureId, studentId, status, score) => {
+    const handleMark = async (lectureId, studentId, status) => {
         try {
             const api = role === 'instructor' ? instructorAPI : assistantAPI;
-            await api.markAttendance({ lectureId, studentId, status, score });
+            await api.markAttendance({ lectureId, studentId, status, score: 0 });
             
             // Optimistic update
             setAttendance(prev => prev.map(a => 
                 (a.LectureID === lectureId && a.StudentID === studentId) 
-                ? { ...a, Status: status, Score: score !== undefined ? score : a.Score } 
+                ? { ...a, Status: status } 
                 : a
             ));
         } catch (err) {
@@ -120,9 +120,6 @@ const AttendanceTab = ({ courseId, role = 'student' }) => {
                                         <div>
                                             <div className="flex items-center gap-2">
                                                 <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase italic tracking-tight">{a.Title || 'Standard Lecture'}</h4>
-                                                {a.Score !== null && (
-                                                    <span className="px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-500 text-[9px] font-black italic">Pts: {a.Score}</span>
-                                                )}
                                             </div>
                                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 italic">
                                                 {new Date(a.Date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -211,94 +208,88 @@ const AttendanceTab = ({ courseId, role = 'student' }) => {
                     ) : lectureList.map((l) => (
                         <button
                             key={l.id}
-                            onClick={() => setSelectedLecture(l)}
+                            onClick={() => setSelectedLectureId(l.id)}
                             className={`w-full text-left p-6 rounded-[2rem] border transition-all flex items-center justify-between group ${
-                                selectedLecture?.id === l.id 
+                                selectedLectureId === l.id 
                                 ? 'bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-500/20' 
                                 : 'bg-white dark:bg-slate-900/40 border-slate-100 dark:border-white/5 hover:border-blue-200 dark:hover:border-blue-500/30'
                             }`}
                         >
                             <div>
-                                <h4 className={`text-sm font-black uppercase italic tracking-tight ${selectedLecture?.id === l.id ? 'text-white' : 'text-slate-800 dark:text-white'}`}>
+                                <h4 className={`text-sm font-black uppercase italic tracking-tight ${selectedLectureId === l.id ? 'text-white' : 'text-slate-800 dark:text-white'}`}>
                                     {l.title || 'Lecture Session'}
                                 </h4>
-                                <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 italic ${selectedLecture?.id === l.id ? 'text-blue-100' : 'text-slate-400'}`}>
+                                <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 italic ${selectedLectureId === l.id ? 'text-blue-100' : 'text-slate-400'}`}>
                                     {new Date(l.date).toLocaleDateString()}
                                 </p>
                             </div>
-                            <ChevronRight size={18} className={selectedLecture?.id === l.id ? 'text-white' : 'text-slate-300'} />
+                            <ChevronRight size={18} className={selectedLectureId === l.id ? 'text-white' : 'text-slate-300'} />
                         </button>
                     ))}
                 </div>
 
                 {/* Students Roster for Selected Lecture */}
                 <div className="md:col-span-2">
-                    {selectedLecture ? (
-                        <div className="bg-white dark:bg-slate-900/40 backdrop-blur-xl rounded-[3rem] border border-slate-100 dark:border-white/5 overflow-hidden shadow-sm">
-                            <div className="p-8 border-b border-slate-50 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-white/5">
-                                <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest italic">{selectedLecture.title} — Roster</h3>
-                                <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/10 px-4 py-2 rounded-full italic">
-                                    {selectedLecture.students.length} Entries
-                                </span>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-slate-50/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5">
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Student</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Status</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Score</th>
-                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right italic">Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-50 dark:divide-white/5">
-                                        {selectedLecture.students.map((s) => (
-                                            <tr key={`${selectedLecture.id}-${s.StudentID}`} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
-                                                <td className="px-8 py-6">
-                                                    <p className="text-sm font-black text-slate-800 dark:text-white uppercase italic">{s.StudentName || 'Unknown Student'}</p>
-                                                </td>
-                                                <td className="px-8 py-6 text-center">
-                                                    <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${
-                                                        s.Status === 'Present' ? 'bg-emerald-500/10 text-emerald-500' : 
-                                                        s.Status === 'Absent' ? 'bg-red-500/10 text-red-500' :
-                                                        'bg-amber-500/10 text-amber-500'
-                                                    }`}>
-                                                        {s.Status || 'Unmarked'}
-                                                    </span>
-                                                </td>
-                                                <td className="px-8 py-6 text-center">
-                                                    <input 
-                                                        type="number" 
-                                                        step="0.5"
-                                                        min="0"
-                                                        placeholder="—"
-                                                        defaultValue={s.Score}
-                                                        onBlur={(e) => handleMark(selectedLecture.id, s.StudentID, s.Status, e.target.value)}
-                                                        className="w-16 p-2 bg-slate-100 dark:bg-white/5 border-none rounded-xl text-center text-xs font-black italic outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                                                    />
-                                                </td>
-                                                <td className="px-8 py-6 text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <button 
-                                                            onClick={() => handleMark(selectedLecture.id, s.StudentID, 'Present', s.Score)}
-                                                            className={`p-2 rounded-lg transition-all ${s.Status === 'Present' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-emerald-500'}`}
-                                                        >
-                                                            <UserCheck size={16} />
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleMark(selectedLecture.id, s.StudentID, 'Absent', s.Score)}
-                                                            className={`p-2 rounded-lg transition-all ${s.Status === 'Absent' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-red-500'}`}
-                                                        >
-                                                            <UserX size={16} />
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                    {selectedLectureId ? (
+                        (() => {
+                            const selectedLecture = lectureList.find(l => l.id === selectedLectureId);
+                            if (!selectedLecture) return null;
+                            return (
+                                <div className="bg-white dark:bg-slate-900/40 backdrop-blur-xl rounded-[3rem] border border-slate-100 dark:border-white/5 overflow-hidden shadow-sm">
+                                    <div className="p-8 border-b border-slate-50 dark:border-white/5 flex items-center justify-between bg-slate-50/50 dark:bg-white/5">
+                                        <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-widest italic">{selectedLecture.title} — Roster</h3>
+                                        <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/10 px-4 py-2 rounded-full italic">
+                                            {selectedLecture.students.length} Entries
+                                        </span>
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-slate-50/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5">
+                                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Student</th>
+                                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Status</th>
+                                                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right italic">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50 dark:divide-white/5">
+                                                {selectedLecture.students.map((s) => (
+                                                    <tr key={`${selectedLecture.id}-${s.StudentID}`} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+                                                        <td className="px-8 py-6">
+                                                            <p className="text-sm font-black text-slate-800 dark:text-white uppercase italic">{s.StudentName || 'Unknown Student'}</p>
+                                                        </td>
+                                                        <td className="px-8 py-6 text-center">
+                                                            <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic ${
+                                                                s.Status === 'Present' ? 'bg-emerald-500/10 text-emerald-500' : 
+                                                                s.Status === 'Absent' ? 'bg-red-500/10 text-red-500' :
+                                                                'bg-amber-500/10 text-amber-500'
+                                                            }`}>
+                                                                {s.Status || 'Unmarked'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-8 py-6 text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <button 
+                                                                    onClick={() => handleMark(selectedLecture.id, s.StudentID, 'Present')}
+                                                                    className={`p-2 rounded-lg transition-all ${s.Status === 'Present' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-emerald-500'}`}
+                                                                >
+                                                                    <UserCheck size={16} />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleMark(selectedLecture.id, s.StudentID, 'Absent')}
+                                                                    className={`p-2 rounded-lg transition-all ${s.Status === 'Absent' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-red-500'}`}
+                                                                >
+                                                                    <UserX size={16} />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            );
+                        })()
                     ) : (
                         <div className="p-20 text-center border-2 border-dashed border-slate-100 dark:border-white/5 rounded-[3rem] bg-white/50 dark:bg-slate-900/20">
                             <Filter size={40} className="mx-auto text-slate-300 mb-4" />

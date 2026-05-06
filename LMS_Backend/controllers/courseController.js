@@ -399,6 +399,7 @@ const getCourseParticipants = async (req, res) => {
 const getCourseGrades = async (req, res) => {
     const { courseId } = req.params;
     try {
+        console.log(`[DEBUG] Fetching grades for CourseID: ${courseId}`);
         const pool = await getPool();
         const result = await pool.request().input('cId', sql.Int, courseId).query(`
             SELECT u.FullName, u.Email, cg.GradeID, cg.StudentID, cg.CourseID,
@@ -406,13 +407,21 @@ const getCourseGrades = async (req, res) => {
                    cg.QuizTotal,
                    cg.AttendanceTotal,
                    cg.FinalGrade,
-                   (cg.AssignmentTotal + cg.QuizTotal + cg.AttendanceTotal + cg.FinalGrade) AS TotalScore
+                   (ISNULL(cg.AssignmentTotal, 0) + ISNULL(cg.QuizTotal, 0) + ISNULL(cg.AttendanceTotal, 0) + ISNULL(cg.FinalGrade, 0)) AS TotalScore
             FROM Course_Grades cg 
             INNER JOIN Users u ON cg.StudentID = u.UserID 
             WHERE cg.CourseID = @cId
         `);
+        console.log(`[DEBUG] getCourseGrades returned ${result.recordset.length} rows`);
         return success(res, result.recordset);
-    } catch (err) { return error(res, "Failed to fetch grades", 500, err); }
+    } catch (err) { 
+        console.error(`[CRITICAL ERROR] getCourseGrades failed for CourseID ${courseId}:`, {
+            message: err.message,
+            stack: err.stack,
+            sqlError: err.number || err.code
+        });
+        return error(res, `Failed to fetch grades: ${err.message}`, 500, err); 
+    }
 };
 
 // =============================================
@@ -428,10 +437,11 @@ const getCourseAttendance = async (req, res) => {
                    u.UserID as StudentID, u.FullName as StudentName, 
                    a.Status, a.Score
             FROM Lecture l
-            INNER JOIN Enrollment e ON l.CourseID = e.CourseID
+            INNER JOIN StudyWeek w ON l.Week_ID = w.Week_ID
+            INNER JOIN Enrollment e ON w.CourseID = e.CourseID
             INNER JOIN Users u ON e.StudentID = u.UserID
             LEFT JOIN Attendance a ON l.LectureID = a.LectureID AND u.UserID = a.StudentID
-            WHERE l.CourseID = @cId
+            WHERE w.CourseID = @cId
             ORDER BY l.Date DESC, u.FullName ASC
         `);
         return success(res, result.recordset);

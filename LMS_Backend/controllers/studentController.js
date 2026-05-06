@@ -252,8 +252,9 @@ const getCalendarEvents = async (req, res) => {
                 SELECT l.Title, l.Date, 'lecture' AS Type, c.Name AS CourseName,
                        0 AS IsSubmitted
                 FROM Lecture l
-                INNER JOIN Enrollment e ON l.CourseID = e.CourseID
-                INNER JOIN Course c ON l.CourseID = c.CourseID
+                INNER JOIN StudyWeek w ON l.Week_ID = w.Week_ID
+                INNER JOIN Enrollment e ON w.CourseID = e.CourseID
+                INNER JOIN Course c ON w.CourseID = c.CourseID
                 WHERE e.StudentID = @userID
             `);
 
