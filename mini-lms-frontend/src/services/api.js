@@ -202,6 +202,7 @@ export const assistantAPI = {
     deleteCourseMaterial: (id) => api.delete(`/assistant/courses/materials/${id}`),
     getCourseAttendance: (courseId) => api.get(`/assistant/courses/${courseId}/attendance`),
     markAttendance: (data) => api.post('/assistant/attendance/mark', data),
+    addLecture: (data) => api.post('/assistant/lectures', data),
     getCourseQuizzes: (courseId) => api.get(`/assistant/courses/${courseId}/quizzes`)
 };
 

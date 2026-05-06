@@ -5,7 +5,7 @@ import {
     Clock, AlertCircle, ChevronRight, Search, Filter, Zap 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { instructorAPI, assistantAPI } from '../../services/api';
+import { instructorAPI, assistantAPI, studentAPI } from '../../services/api';
 
 /**
  * Unified ActivitiesTab component for Student, Instructor, and Assistant portals.

@@ -20,7 +20,7 @@ router.use(verifyToken, requireRole('Assistant'));
 
 // ===== Assigned Courses =====
 router.get('/courses', getMyCourses);
-router.get('/courses/:id/details', getCourseContent);
+router.get('/courses/:courseId/details', getCourseContent);
 
 // ===== Assignments (with course authorization) =====
 router.post('/assignments', requireCourseAssistant, validate(createAssignmentSchema), createAssignment);
@@ -37,6 +37,7 @@ router.get('/courses/:courseId/participants', requireCourseAssistant, getCourseP
 router.get('/courses/:courseId/grades', requireCourseAssistant, getCourseGrades);
 router.get('/courses/:courseId/attendance', requireCourseAssistant, getCourseAttendance);
 router.post('/attendance/mark', markAttendance);
+router.post('/lectures', requireCourseAssistant, addLecture);
 router.get('/courses/:courseId/quizzes', requireCourseAssistant, getCourseQuizzes);
 
 // ===== Discussions =====

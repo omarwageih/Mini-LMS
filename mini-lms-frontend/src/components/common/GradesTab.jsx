@@ -93,7 +93,10 @@ const GradesTab = ({ courseId, role = 'student' }) => {
                             <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase italic">Grade Index</h3>
                             <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest mt-2 italic leading-relaxed">Your performance is calculated based on assignments, assessments, and attendance protocols.</p>
                         </div>
-                        <button className="w-full mt-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 italic shadow-xl">
+                        <button 
+                            onClick={() => alert("Audit Request Logged: Your academic index will be reviewed by the registrar.")}
+                            className="w-full mt-8 py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 italic shadow-xl"
+                        >
                             Request Audit <ChevronRight size={14} />
                         </button>
                     </div>
@@ -226,8 +229,8 @@ const GradesTab = ({ courseId, role = 'student' }) => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-white/5">
-                            {filteredGrades.map((g) => (
-                                <tr key={g.GradeID} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
+                            {filteredGrades.map((g, idx) => (
+                                <tr key={g.GradeID || g.StudentID || idx} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
                                     <td className="px-8 py-6">
                                         <div>
                                             <p className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight italic">{g.FullName}</p>

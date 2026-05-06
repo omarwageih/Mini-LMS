@@ -39,7 +39,7 @@ const Calendar = () => {
 
     const getEventsForDate = (day) => {
         return events.filter(e => {
-            const d = new Date(e.Deadline);
+            const d = new Date(e.Date);
             return d.getDate() === day && d.getMonth() === month && d.getFullYear() === year;
         });
     };
@@ -53,7 +53,7 @@ const Calendar = () => {
 
     // Upcoming deadlines
     const upcoming = events
-        .filter(e => new Date(e.Deadline) >= today && !e.Submitted)
+        .filter(e => new Date(e.Date) >= today && !e.IsSubmitted)
         .slice(0, 5);
 
     if (loading) {
@@ -105,7 +105,7 @@ const Calendar = () => {
                             const day = i + 1;
                             const dayEvents = getEventsForDate(day);
                             const hasDeadline = dayEvents.length > 0;
-                            const allSubmitted = dayEvents.every(e => e.Submitted);
+                            const allSubmitted = dayEvents.every(e => e.IsSubmitted);
 
                             return (
                                 <motion.div
@@ -123,7 +123,7 @@ const Calendar = () => {
                                     {hasDeadline && (
                                         <div className="flex justify-center gap-0.5 mt-1">
                                             {dayEvents.slice(0, 3).map((e, idx) => (
-                                                <div key={idx} className={`w-1.5 h-1.5 rounded-full ${e.Type === 'Lecture' ? 'bg-purple-500' : e.Submitted ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                                                <div key={idx} className={`w-1.5 h-1.5 rounded-full ${e.Type.toLowerCase() === 'lecture' ? 'bg-purple-500' : e.IsSubmitted ? 'bg-emerald-500' : 'bg-red-500'}`} />
                                             ))}
                                         </div>
                                     )}
@@ -161,7 +161,7 @@ const Calendar = () => {
                         </div>
                     ) : (
                         upcoming.map((e, idx) => {
-                            const deadline = new Date(e.Deadline);
+                            const deadline = new Date(e.Date);
                             const daysLeft = Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
                             return (
                                 <motion.div

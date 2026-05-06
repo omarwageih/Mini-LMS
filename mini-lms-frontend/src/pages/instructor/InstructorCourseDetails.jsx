@@ -76,7 +76,7 @@ const InstructorCourseDetails = () => {
             if (materialForm.file) formData.append('file', materialForm.file);
             if (materialForm.url) formData.append('url', materialForm.url);
 
-            await apiPost('/instructor/materials', formData);
+            await instructorAPI.addMaterial(formData);
             
             setMsg({ text: 'Resource deployed successfully!', type: 'success' });
             setMaterialForm({ title: '', description: '', file: null, fileType: 'document', url: '' });
@@ -84,10 +84,26 @@ const InstructorCourseDetails = () => {
             loadData();
             setTimeout(() => setMsg({ text: '', type: '' }), 3000);
         } catch (err) {
-            setMsg({ text: err.message, type: 'error' });
+            setMsg({ text: err.response?.data?.message || err.message, type: 'error' });
             setTimeout(() => setMsg({ text: '', type: '' }), 3000);
         } finally {
             setUploading(false);
+        }
+    };
+
+    const handleAddWeek = async () => {
+        try {
+            const weekNumber = weeks.length + 1;
+            await instructorAPI.addWeek({
+                courseId: id,
+                weekNumber,
+                title: `Week ${weekNumber}: New Module`
+            });
+            setMsg({ text: 'New study sector established.', type: 'success' });
+            loadData();
+            setTimeout(() => setMsg({ text: '', type: '' }), 3000);
+        } catch (err) {
+            setMsg({ text: err.response?.data?.message || err.message, type: 'error' });
         }
     };
 
@@ -184,12 +200,20 @@ const InstructorCourseDetails = () => {
                         <div className="glass-card overflow-hidden shadow-xl shadow-blue-500/5">
                             <div className="px-6 py-5 flex items-center justify-between bg-slate-50/50 dark:bg-white/5">
                                 <h2 className="text-sm font-black uppercase tracking-[0.2em] text-slate-800 dark:text-white italic">General</h2>
-                                <button 
-                                    onClick={() => setExpandedWeeks({})}
-                                    className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:underline"
-                                >
-                                    Collapse all
-                                </button>
+                                <div className="flex items-center gap-4">
+                                    <button 
+                                        onClick={handleAddWeek}
+                                        className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                    >
+                                        <Plus size={12} /> Add Week
+                                    </button>
+                                    <button 
+                                        onClick={() => setExpandedWeeks({})}
+                                        className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                                    >
+                                        Collapse all
+                                    </button>
+                                </div>
                             </div>
                             <div className="px-6 py-5 border-t border-slate-100 dark:border-white/5 space-y-3">
                                 <Link to={`/discussions/${course.CourseID}`} className="flex items-center gap-4 text-blue-600 dark:text-blue-400 hover:bg-blue-600/5 p-4 rounded-2xl transition-all border border-transparent hover:border-blue-500/20 group">

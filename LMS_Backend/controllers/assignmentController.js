@@ -140,6 +140,7 @@ const getSubmissions = async (req, res) => {
 const gradeSubmission = async (req, res) => {
     const { submissionId, score } = req.body;
     if (submissionId === undefined || score === undefined) return badRequest(res, "submissionId and score are required.");
+    if (isNaN(parseFloat(score))) return badRequest(res, "Score must be a valid number.");
 
     try {
         const pool = await getPool();
@@ -151,7 +152,7 @@ const gradeSubmission = async (req, res) => {
                JOIN Assignment a ON sub.AssignmentID = a.AssignmentID 
                JOIN Course c ON a.CourseID = c.CourseID 
                WHERE sub.SubID = @sId AND c.InstructorID = @uId`
-            : `SELECT sub.SubID, sub.StudentID, a.Title, c.CourseID 
+            : `SELECT sub.SubID, sub.StudentID, a.Title, a.CourseID 
                FROM Submission sub 
                JOIN Assignment a ON sub.AssignmentID = a.AssignmentID 
                JOIN Course_Assistants ca ON a.CourseID = ca.CourseID 

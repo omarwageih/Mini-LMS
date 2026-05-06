@@ -95,9 +95,13 @@ const getCourseContent = async (req, res) => {
             weeks.push({ ...week, materials: mats.recordset, lectures: lecs.recordset });
         }
 
+        // Course Info
+        const courseRes = await pool.request().input('cId', sql.Int, courseId).query('SELECT c.*, u.FullName AS InstructorName FROM Course c LEFT JOIN Users u ON c.InstructorID = u.UserID WHERE c.CourseID = @cId');
+        if (courseRes.recordset.length === 0) return notFound(res, "Course not found.");
+
         const assignments = await pool.request().input('cId', sql.Int, courseId).query('SELECT * FROM Assignment WHERE CourseID = @cId ORDER BY Deadline');
 
-        return success(res, { weeks, assignments: assignments.recordset });
+        return success(res, { course: courseRes.recordset[0], weeks, assignments: assignments.recordset });
     } catch (err) {
         return error(res, "Failed to fetch course content", 500, err);
     }
@@ -178,11 +182,11 @@ const getGrades = async (req, res) => {
             .input('userID', sql.Int, userID)
             .query(`
                 SELECT c.CourseID, c.CourseID as courseId, c.Name AS CourseName, 
-                       cg.Attendance_Grade, cg.Midterm_Grade, cg.Practical_Grade, cg.Final_Grade, cg.Total_Grade,
-                       cg.Practical_Grade as AssignmentTotal,
-                       cg.Midterm_Grade as QuizTotal,
-                       cg.Attendance_Grade as AttendanceTotal,
-                       cg.Total_Grade as TotalScore
+                       cg.AttendanceTotal AS Attendance_Grade, 
+                       cg.QuizTotal AS Midterm_Grade, 
+                       cg.AssignmentTotal AS Practical_Grade, 
+                       cg.FinalGrade AS Final_Grade,
+                       (cg.AttendanceTotal + cg.QuizTotal + cg.AssignmentTotal + cg.FinalGrade) AS TotalScore
                 FROM Course_Grades cg
                 INNER JOIN Course c ON cg.CourseID = c.CourseID
                 WHERE cg.StudentID = @userID
@@ -233,17 +237,20 @@ const getCalendarEvents = async (req, res) => {
         const assignments = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
-                SELECT a.Title, a.Deadline AS Date, 'assignment' AS Type, c.Name AS CourseName
+                SELECT a.Title, a.Deadline AS Date, 'assignment' AS Type, c.Name AS CourseName,
+                       CASE WHEN s.SubID IS NOT NULL THEN 1 ELSE 0 END AS IsSubmitted
                 FROM Assignment a
                 INNER JOIN Enrollment e ON a.CourseID = e.CourseID
                 INNER JOIN Course c ON a.CourseID = c.CourseID
+                LEFT JOIN Submission s ON s.AssignmentID = a.AssignmentID AND s.StudentID = @userID
                 WHERE e.StudentID = @userID
             `);
 
         const lectures = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
-                SELECT l.Title, l.Date, 'lecture' AS Type, c.Name AS CourseName
+                SELECT l.Title, l.Date, 'lecture' AS Type, c.Name AS CourseName,
+                       0 AS IsSubmitted
                 FROM Lecture l
                 INNER JOIN Enrollment e ON l.CourseID = e.CourseID
                 INNER JOIN Course c ON l.CourseID = c.CourseID

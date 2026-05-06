@@ -72,7 +72,9 @@ const register = async (req, res) => {
             } else if (userType === "Assistant") {
                 await request.query('INSERT INTO Assistants (UserID) VALUES (@userID)');
             } else if (userType === "Student") {
-                await request.query('INSERT INTO Students (UserID) VALUES (@userID)');
+                // Generate a random student code to avoid unique constraint issues
+                const studentCode = 'S' + Math.floor(100000 + Math.random() * 900000);
+                await request.input('sCode', sql.VarChar, studentCode).query('INSERT INTO Students (UserID, StudentCode) VALUES (@userID, @sCode)');
             }
 
             // Commit transaction if all succeeded

@@ -26,7 +26,7 @@ const AssistantCourseDetails = () => {
     const [uploadForm, setUploadForm] = useState({ title: '', description: '', file: null, fileType: 'document' });
     const [msg, setMsg] = useState({ text: '', type: '' });
     const [materials, setMaterials] = useState([]);
-    const [activeTab, setActiveTab] = useState('course'); // 'course' | 'participants' | 'grades' | 'activities' | 'competencies'
+    const [activeTab, setActiveTab] = useState('matrix'); // 'matrix' | 'participants' | 'grades' | 'activities' | 'competencies'
 
     const loadData = async () => {
         try {
@@ -129,8 +129,8 @@ const AssistantCourseDetails = () => {
                                 <EmptyState icon={Inbox} title="No Study Cycles Found" description="The syllabus structure is currently empty." />
                             ) : (
                                 <div className="space-y-6">
-                                    {weeks.map((week) => (
-                                        <motion.div key={week.Week_ID} whileHover={{ x: 5 }} className="glass-card p-8 border border-slate-100 dark:border-white/5 bg-white dark:bg-slate-900/40 relative group overflow-hidden rounded-[2rem]">
+                                    {weeks.map((week, idx) => (
+                                        <motion.div key={week.WeekID || week.Week_ID || idx} whileHover={{ x: 5 }} className="glass-card p-8 border border-slate-100 dark:border-white/5 bg-white dark:bg-slate-900/40 relative group overflow-hidden rounded-[2rem]">
                                             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 blur-3xl -mr-16 -mt-16 group-hover:bg-blue-500/10 transition-colors duration-500"></div>
                                             <div className="flex justify-between items-start mb-6 relative z-10">
                                                 <div className="space-y-1">
@@ -139,8 +139,8 @@ const AssistantCourseDetails = () => {
                                                 </div>
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
-                                                {week.materials && week.materials.map(m => (
-                                                    <div key={m.Material_ID} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/10 group/item hover:border-blue-500/30 transition-all">
+                                                {week.materials && week.materials.map((m, idx) => (
+                                                    <div key={m.MaterialID || m.Material_ID || idx} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/10 group/item hover:border-blue-500/30 transition-all">
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center"><FileText size={16} /></div>
                                                             <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{m.Title}</span>
@@ -220,8 +220,8 @@ const AssistantCourseDetails = () => {
                                 <div className="space-y-4">
                                     {materials.length === 0 ? (
                                         <div className="p-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] glass-card border-dashed border-slate-200 dark:border-white/10 rounded-[2rem]">Empty Storage Node</div>
-                                    ) : materials.map(m => (
-                                        <div key={m.MaterialID} className="glass-card p-6 border border-slate-100 dark:border-white/5 bg-white dark:bg-white/5 group relative overflow-hidden transition-all hover:border-blue-500/30 rounded-3xl shadow-sm">
+                                    ) : materials.map((m, idx) => (
+                                        <div key={m.MaterialID || m.Material_ID || idx} className="glass-card p-6 border border-slate-100 dark:border-white/5 bg-white dark:bg-white/5 group relative overflow-hidden transition-all hover:border-blue-500/30 rounded-3xl shadow-sm">
                                             <div className="flex items-center justify-between relative z-10">
                                                 <div className="flex items-center gap-4">
                                                     <div className={`w-12 h-12 rounded-[1rem] flex items-center justify-center shadow-lg ${

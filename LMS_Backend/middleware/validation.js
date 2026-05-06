@@ -125,9 +125,15 @@ const validate = (schema) => (req, res, next) => {
         schema.parse(req.body);
         next();
     } catch (err) {
-        const errors = err.errors?.map(e => e.message) || ['Invalid input'];
+        const issues = err.issues || err.errors || [];
+        const errorMessages = issues.map(e => e.message);
+        const displayError = errorMessages.length > 0 ? errorMessages[0] : 'Invalid input';
+        
         console.error("Zod Validation Error:", err);
-        return res.status(400).json({ message: errors[0], errors });
+        return res.status(400).json({ 
+            message: displayError, 
+            errors: errorMessages.length > 0 ? errorMessages : ['Invalid input'] 
+        });
     }
 };
 
@@ -136,8 +142,14 @@ const validateParams = (schema) => (req, res, next) => {
         schema.parse(req.params);
         next();
     } catch (err) {
-        const errors = err.errors?.map(e => e.message) || ['Invalid parameters'];
-        return res.status(400).json({ message: errors[0], errors });
+        const issues = err.issues || err.errors || [];
+        const errorMessages = issues.map(e => e.message);
+        const displayError = errorMessages.length > 0 ? errorMessages[0] : 'Invalid parameters';
+        
+        return res.status(400).json({ 
+            message: displayError, 
+            errors: errorMessages.length > 0 ? errorMessages : ['Invalid parameters'] 
+        });
     }
 };
 

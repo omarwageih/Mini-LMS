@@ -201,7 +201,17 @@ const runMigrations = async () => {
             )
             ALTER TABLE Students ADD StudentCode VARCHAR(20) UNIQUE;
         `);
-        console.log('✅ Migration 12: Students.StudentCode column ensured.');
+        // Migration 13: Sync Course_Grades with Enrollment
+        await pool.request().query(`
+            INSERT INTO Course_Grades (StudentID, CourseID)
+            SELECT e.StudentID, e.CourseID
+            FROM Enrollment e
+            WHERE NOT EXISTS (
+                SELECT 1 FROM Course_Grades cg 
+                WHERE cg.StudentID = e.StudentID AND cg.CourseID = e.CourseID
+            );
+        `);
+        console.log('✅ Migration 13: Course_Grades synced with Enrollment.');
 
         console.log('All migrations completed successfully.');
     } catch (err) {

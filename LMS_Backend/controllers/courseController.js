@@ -401,11 +401,12 @@ const getCourseGrades = async (req, res) => {
     try {
         const pool = await getPool();
         const result = await pool.request().input('cId', sql.Int, courseId).query(`
-            SELECT u.FullName, u.Email, cg.*, cg.CourseID as courseId,
-                   cg.Practical_Grade as AssignmentTotal,
-                   cg.Midterm_Grade as QuizTotal,
-                   cg.Attendance_Grade as AttendanceTotal,
-                   cg.Total_Grade as TotalScore
+            SELECT u.FullName, u.Email, cg.GradeID, cg.StudentID, cg.CourseID,
+                   cg.AssignmentTotal,
+                   cg.QuizTotal,
+                   cg.AttendanceTotal,
+                   cg.FinalGrade,
+                   (cg.AssignmentTotal + cg.QuizTotal + cg.AttendanceTotal + cg.FinalGrade) AS TotalScore
             FROM Course_Grades cg 
             INNER JOIN Users u ON cg.StudentID = u.UserID 
             WHERE cg.CourseID = @cId
@@ -438,18 +439,19 @@ const getCourseAttendance = async (req, res) => {
 };
 
 const markAttendance = async (req, res) => {
-    const { lectureId, studentId, status } = req.body;
+    const { lectureId, studentId, status, score } = req.body;
     try {
         const pool = await getPool();
         await pool.request()
             .input('lId', sql.Int, lectureId)
             .input('sId', sql.Int, studentId)
             .input('status', sql.VarChar, status)
+            .input('score', sql.Decimal(5, 2), score || null)
             .query(`
                 IF EXISTS (SELECT 1 FROM Attendance WHERE LectureID = @lId AND StudentID = @sId)
-                    UPDATE Attendance SET Status = @status WHERE LectureID = @lId AND StudentID = @sId
+                    UPDATE Attendance SET Status = @status, Score = @score WHERE LectureID = @lId AND StudentID = @sId
                 ELSE
-                    INSERT INTO Attendance (LectureID, StudentID, Status) VALUES (@lId, @sId, @status)
+                    INSERT INTO Attendance (LectureID, StudentID, Status, Score) VALUES (@lId, @sId, @status, @score)
             `);
         return success(res, { message: "Attendance recorded" });
     } catch (err) { return error(res, "Failed to mark attendance", 500, err); }

@@ -162,7 +162,15 @@ const CourseDetails = () => {
                                                         return (
                                                             <div 
                                                                 key={`mat-${mat.MaterialID}`} 
-                                                                onClick={() => isVideo ? setActiveVideo(mat) : window.open(`${API_URL}${mat.FileURL}`, '_blank')}
+                                                                onClick={() => {
+                                                                    if (isVideo) {
+                                                                        setActiveVideo(mat);
+                                                                    } else {
+                                                                        const url = mat.FileURL || mat.FileUrl || '';
+                                                                        const isAbsolute = url.startsWith('http') || url.includes('//');
+                                                                        window.open(isAbsolute ? url : `${API_URL}${url}`, '_blank');
+                                                                    }
+                                                                }}
                                                                 className="flex items-center justify-between group p-2 hover:bg-slate-50 dark:hover:bg-white/5 rounded-xl transition-colors cursor-pointer"
                                                             >
                                                                 <div className="flex items-center gap-3">

@@ -16,35 +16,57 @@ const AttendanceTab = ({ courseId, role = 'student' }) => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedLecture, setSelectedLecture] = useState(null);
+    const [showNewSession, setShowNewSession] = useState(false);
+    const [newSession, setNewSession] = useState({ title: '', date: new Date().toISOString().split('T')[0], startTime: '09:00', endTime: '11:00', weekId: '' });
+    const [weeks, setWeeks] = useState([]);
+
+    const loadAttendance = async () => {
+        try {
+            const api = role === 'student' ? studentAPI : (role === 'instructor' ? instructorAPI : assistantAPI);
+            const { data } = await api.getCourseAttendance(courseId);
+            setAttendance(data || []);
+            
+            // If staff, also load weeks for session creation
+            if (role !== 'student') {
+                const content = await api.getCourseContent(courseId);
+                setWeeks(content.data?.weeks || content.weeks || []);
+            }
+        } catch (err) {
+            console.error("Load Attendance Error:", err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const load = async () => {
-            try {
-                const api = role === 'student' ? studentAPI : (role === 'instructor' ? instructorAPI : assistantAPI);
-                const { data } = await api.getCourseAttendance(courseId);
-                setAttendance(data || []);
-            } catch (err) {
-                console.error("Load Attendance Error:", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        load();
+        loadAttendance();
     }, [courseId, role]);
 
-    const handleMark = async (lectureId, studentId, status) => {
+    const handleMark = async (lectureId, studentId, status, score) => {
         try {
             const api = role === 'instructor' ? instructorAPI : assistantAPI;
-            await api.markAttendance({ lectureId, studentId, status });
+            await api.markAttendance({ lectureId, studentId, status, score });
             
             // Optimistic update
             setAttendance(prev => prev.map(a => 
                 (a.LectureID === lectureId && a.StudentID === studentId) 
-                ? { ...a, Status: status } 
+                ? { ...a, Status: status, Score: score !== undefined ? score : a.Score } 
                 : a
             ));
         } catch (err) {
             console.error("Mark Attendance Error:", err);
+        }
+    };
+
+    const handleAddSession = async (e) => {
+        e.preventDefault();
+        try {
+            const api = role === 'instructor' ? instructorAPI : assistantAPI;
+            await api.addLecture({ ...newSession, courseId });
+            setShowNewSession(false);
+            loadAttendance();
+        } catch (err) {
+            console.error("Add Session Error:", err);
         }
     };
 
@@ -83,7 +105,7 @@ const AttendanceTab = ({ courseId, role = 'student' }) => {
                         ) : (
                             attendance.map((a, idx) => (
                                 <motion.div
-                                    key={idx}
+                                    key={a.LectureID || idx}
                                     whileHover={{ x: 4 }}
                                     className="p-6 rounded-[2rem] bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-white/5 shadow-sm flex items-center justify-between group"
                                 >
@@ -96,7 +118,12 @@ const AttendanceTab = ({ courseId, role = 'student' }) => {
                                             <Clock size={24} />
                                         </div>
                                         <div>
-                                            <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase italic tracking-tight">{a.Title || 'Standard Lecture'}</h4>
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase italic tracking-tight">{a.Title || 'Standard Lecture'}</h4>
+                                                {a.Score !== null && (
+                                                    <span className="px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-500 text-[9px] font-black italic">Pts: {a.Score}</span>
+                                                )}
+                                            </div>
                                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 italic">
                                                 {new Date(a.Date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                                             </p>
@@ -138,13 +165,50 @@ const AttendanceTab = ({ courseId, role = 'student' }) => {
                     <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter italic">Attendance Matrix</h2>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest italic">Verification and Logging Terminal</p>
                 </div>
+                <button 
+                    onClick={() => setShowNewSession(true)}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black uppercase tracking-widest rounded-2xl transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2 italic"
+                >
+                    <Calendar size={14} /> New Session
+                </button>
             </div>
+
+            {showNewSession && (
+                <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="p-8 bg-white dark:bg-slate-900 rounded-[3rem] border-2 border-blue-500/20 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+                    <form onSubmit={handleAddSession} className="relative z-10 grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                        <div className="md:col-span-2">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-1 block">Session Title</label>
+                            <input type="text" required placeholder="Lecture Title..." value={newSession.title} onChange={e => setNewSession({...newSession, title: e.target.value})} className="w-full p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500 transition-all text-xs font-bold" />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-1 block">Date</label>
+                            <input type="date" required value={newSession.date} onChange={e => setNewSession({...newSession, date: e.target.value})} className="w-full p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500 transition-all text-xs font-bold" />
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-2 mb-1 block">Week</label>
+                            <select required value={newSession.weekId} onChange={e => setNewSession({...newSession, weekId: e.target.value})} className="w-full p-4 bg-slate-100 dark:bg-white/5 rounded-2xl border-none outline-none focus:ring-2 focus:ring-blue-500 transition-all text-xs font-bold">
+                                <option value="">Select Week</option>
+                                {weeks.map(w => <option key={w.WeekID} value={w.WeekID}>Week {w.WeekNumber}: {w.Title}</option>)}
+                            </select>
+                        </div>
+                        <div className="flex gap-2">
+                            <button type="submit" className="flex-1 p-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest italic">Create</button>
+                            <button type="button" onClick={() => setShowNewSession(false)} className="p-4 bg-slate-100 dark:bg-white/10 text-slate-500 rounded-2xl text-[10px] font-black uppercase tracking-widest italic">Cancel</button>
+                        </div>
+                    </form>
+                </motion.div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 {/* Lectures List */}
                 <div className="space-y-4">
                     <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4 mb-2 italic">Session Logs</h3>
-                    {lectureList.map((l) => (
+                    {lectureList.length === 0 ? (
+                        <div className="p-10 text-center border-2 border-dashed border-slate-100 dark:border-white/5 rounded-[2rem] opacity-50">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">No sessions recorded</p>
+                        </div>
+                    ) : lectureList.map((l) => (
                         <button
                             key={l.id}
                             onClick={() => setSelectedLecture(l)}
@@ -183,12 +247,13 @@ const AttendanceTab = ({ courseId, role = 'student' }) => {
                                         <tr className="bg-slate-50/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5">
                                             <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Student</th>
                                             <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Status</th>
+                                            <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Score</th>
                                             <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right italic">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50 dark:divide-white/5">
-                                        {selectedLecture.students.map((s, idx) => (
-                                            <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
+                                        {selectedLecture.students.map((s) => (
+                                            <tr key={`${selectedLecture.id}-${s.StudentID}`} className="hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors">
                                                 <td className="px-8 py-6">
                                                     <p className="text-sm font-black text-slate-800 dark:text-white uppercase italic">{s.StudentName || 'Unknown Student'}</p>
                                                 </td>
@@ -201,16 +266,27 @@ const AttendanceTab = ({ courseId, role = 'student' }) => {
                                                         {s.Status || 'Unmarked'}
                                                     </span>
                                                 </td>
+                                                <td className="px-8 py-6 text-center">
+                                                    <input 
+                                                        type="number" 
+                                                        step="0.5"
+                                                        min="0"
+                                                        placeholder="—"
+                                                        defaultValue={s.Score}
+                                                        onBlur={(e) => handleMark(selectedLecture.id, s.StudentID, s.Status, e.target.value)}
+                                                        className="w-16 p-2 bg-slate-100 dark:bg-white/5 border-none rounded-xl text-center text-xs font-black italic outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                                                    />
+                                                </td>
                                                 <td className="px-8 py-6 text-right">
                                                     <div className="flex items-center justify-end gap-2">
                                                         <button 
-                                                            onClick={() => handleMark(selectedLecture.id, s.StudentID, 'Present')}
+                                                            onClick={() => handleMark(selectedLecture.id, s.StudentID, 'Present', s.Score)}
                                                             className={`p-2 rounded-lg transition-all ${s.Status === 'Present' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-emerald-500'}`}
                                                         >
                                                             <UserCheck size={16} />
                                                         </button>
                                                         <button 
-                                                            onClick={() => handleMark(selectedLecture.id, s.StudentID, 'Absent')}
+                                                            onClick={() => handleMark(selectedLecture.id, s.StudentID, 'Absent', s.Score)}
                                                             className={`p-2 rounded-lg transition-all ${s.Status === 'Absent' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-red-500'}`}
                                                         >
                                                             <UserX size={16} />

@@ -16,15 +16,23 @@ const AssistantSubmissions = () => {
 
     const handleGrade = async (e) => {
         e.preventDefault();
+        const score = parseFloat(gradeForm.score);
+        if (isNaN(score) || score < 0 || score > 100) {
+            return setMsg({ text: 'Please enter a valid score between 0 and 100', type: 'error' });
+        }
+        
         try {
             await apiPost('/assistant/submissions/grade', {
                 submissionId: parseInt(gradeForm.submissionId),
-                score: parseFloat(gradeForm.score)
+                score: score
             });
             setMsg({ text: 'Graded successfully!', type: 'success' });
             setGradeForm({ submissionId: '', score: '' });
             loadSubmissions();
-        } catch (err) { setMsg({ text: err.message, type: 'error' }); }
+            setTimeout(() => setMsg({ text: '', type: '' }), 4000);
+        } catch (err) { 
+            setMsg({ text: err.response?.data?.message || err.message, type: 'error' }); 
+        }
     };
 
     return (
