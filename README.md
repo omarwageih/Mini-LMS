@@ -13,7 +13,8 @@
 
   *Empowering education through a seamless, integrated management platform.*
   
-  <img src="./assets/dashboard.png" alt="Dashboard Preview" width="800">
+  ### 📺 Project Showcase
+  <img src="./assets/demo.webp" alt="Dashboard Demo" width="800">
 </div>
 
 ---
