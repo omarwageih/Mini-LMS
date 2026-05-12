@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./assets/logo.png" alt="Mini LMS Logo" width="200">
+  <img src="./assets/logo.png" alt="Mini LMS Logo" width="150">
   
   # 🚀 Mini LMS
   
@@ -12,6 +12,8 @@
   [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
   *Empowering education through a seamless, integrated management platform.*
+  
+  <img src="./assets/dashboard.png" alt="Dashboard Preview" width="800">
 </div>
 
 ---
@@ -31,7 +33,7 @@
 
 ### Backend
 - **Framework**: Express.js (Node.js)
-- **Database**: Microsoft SQL Server
+- **Database**: Microsoft SQL Server (SQLEXPRESS)
 - **Authentication**: JWT (JSON Web Tokens)
 - **Real-time**: Socket.io
 - **Security**: Helmet, CORS, Rate Limiting
