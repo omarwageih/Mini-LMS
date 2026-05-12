@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Sun, Moon, LayoutDashboard, BookOpen,
   User, LogOut, GraduationCap, Award, ClipboardList,
-  Users, PlusSquare, Menu, X, CalendarDays
+  Users, PlusSquare, Menu, X, CalendarDays, MessageSquare
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -59,6 +59,7 @@ const Sidebar = ({ isDark, toggleTheme }) => {
     ];
 
     const commonEnd = [
+      { icon: <MessageSquare size={22} />, label: 'Messages', path: '/messages' },
       { icon: <User size={22} />, label: 'Profile', path: '/profile' },
     ];
 
@@ -140,9 +141,12 @@ const Sidebar = ({ isDark, toggleTheme }) => {
 
         {/* 🛠 Bottom Actions */}
         <div className="p-6 space-y-4 border-t border-slate-100 dark:border-white/5">
-          {/* User Quick Info */}
-          <div className="px-4 py-2 flex items-center gap-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-transparent dark:border-white/5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-lg shadow-blue-500/20 uppercase overflow-hidden">
+          {/* User Quick Info - Now Clickable */}
+          <div 
+            onClick={() => navigate('/profile')}
+            className="px-4 py-2 flex items-center gap-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-transparent dark:border-white/5 cursor-pointer hover:border-blue-500/30 transition-all group/user"
+          >
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-black text-xs shadow-lg shadow-blue-500/20 uppercase overflow-hidden group-hover/user:scale-105 transition-transform">
               {user.ProfilePicture ? (
                 <img src={`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${user.ProfilePicture}`} alt="" className="w-full h-full object-cover" />
               ) : (
@@ -150,7 +154,7 @@ const Sidebar = ({ isDark, toggleTheme }) => {
               )}
             </div>
             <div className="flex flex-col overflow-hidden">
-              <span className="text-[11px] font-black dark:text-white truncate italic uppercase tracking-tighter">{user.FullName}</span>
+              <span className="text-[11px] font-black dark:text-white truncate italic uppercase tracking-tighter group-hover/user:text-blue-500 transition-colors">{user.FullName}</span>
               <span className="text-[9px] text-slate-400 truncate font-bold">{user.Email}</span>
             </div>
           </div>

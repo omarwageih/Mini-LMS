@@ -13,6 +13,7 @@ const typeIcons = {
     announcement: <Megaphone size={16} className="text-blue-500" />,
     assignment: <ClipboardList size={16} className="text-orange-500" />,
     discussion: <MessageSquare size={16} className="text-emerald-500" />,
+    Message: <MessageSquare size={16} className="text-blue-500" />,
     system: <Info size={16} className="text-slate-400" />,
 };
 
@@ -40,7 +41,7 @@ const NotificationBell = () => {
         const handleNewNotification = (notification) => {
             setNotifications(prev => [notification, ...prev]);
             setUnreadCount(prev => prev + 1);
-            showToast(`New Notification: ${notification.Title}`, 'info');
+            showToast(`New Notification: ${notification.title || notification.Title}`, 'info');
         };
 
         socket.on('notification', handleNewNotification);

@@ -81,6 +81,10 @@ const deleteAssistant = async (req, res) => {
             request.input('userID', sql.Int, id);
 
             await request.query('DELETE FROM Course_Assistants WHERE AssistantID = @userID');
+            await request.query('DELETE FROM Notifications WHERE UserID = @userID');
+            await request.query('DELETE FROM DiscussionReplies WHERE UserID = @userID');
+            await request.query('DELETE FROM DiscussionReplies WHERE PostID IN (SELECT PostID FROM DiscussionPosts WHERE UserID = @userID)');
+            await request.query('DELETE FROM DiscussionPosts WHERE UserID = @userID');
             await request.query('DELETE FROM Assistants WHERE UserID = @userID');
             await request.query("DELETE FROM Users WHERE UserID = @userID AND UserType = 'Assistant'");
 
@@ -177,11 +181,14 @@ const deleteStudent = async (req, res) => {
             // Manual cascade for tables without formal CASCADE constraints
             await request.query('DELETE FROM Submission WHERE StudentID = @userID');
             await request.query('DELETE FROM DiscussionReplies WHERE UserID = @userID');
+            // Fix: Delete all replies to any posts made by this student
+            await request.query('DELETE FROM DiscussionReplies WHERE PostID IN (SELECT PostID FROM DiscussionPosts WHERE UserID = @userID)');
             await request.query('DELETE FROM DiscussionPosts WHERE UserID = @userID');
             await request.query('DELETE FROM Quiz_Result WHERE StudentID = @userID');
             await request.query('DELETE FROM Attendance WHERE StudentID = @userID');
             await request.query('DELETE FROM Enrollment WHERE StudentID = @userID');
             await request.query('DELETE FROM Course_Grades WHERE StudentID = @userID');
+            await request.query('DELETE FROM Notifications WHERE UserID = @userID');
             await request.query('DELETE FROM Students WHERE UserID = @userID');
             await request.query("DELETE FROM Users WHERE UserID = @userID AND UserType = 'Student'");
 

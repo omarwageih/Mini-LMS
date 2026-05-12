@@ -4,9 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     ArrowLeft, FileText, Video, ClipboardList, MessageSquare,
     ChevronDown, ChevronRight, Play, X, Calendar, Plus, Upload, Loader2, CheckCircle2, AlertCircle,
-    Users, Award, Target, BookOpen, Trash2
+    Users, Award, Target, BookOpen, Trash2, Edit2
 } from 'lucide-react';
-import { apiGet, apiPost, apiDelete, instructorAPI } from '../../services/api';
+import { apiGet, apiPost, apiPut, apiDelete, instructorAPI } from '../../services/api';
 import ReactPlayer from 'react-player';
 import ParticipantsTab from '../../components/common/ParticipantsTab';
 import GradesTab from '../../components/common/GradesTab';
@@ -27,6 +27,7 @@ const InstructorCourseDetails = () => {
     
     // UI State for forms
     const [activeForm, setActiveForm] = useState({ type: null, weekId: null }); // type: 'material' | 'lecture'
+    const [confirmDelete, setConfirmDelete] = useState(null); // {type, id, title}
     
     // Form data
     const [uploading, setUploading] = useState(false);
@@ -35,10 +36,18 @@ const InstructorCourseDetails = () => {
     const [materialForm, setMaterialForm] = useState({ title: '', description: '', file: null, fileType: 'document', url: '' });
     const [lectureForm, setLectureForm] = useState({ title: '', date: '', startTime: '', endTime: '' });
 
+    // Course Edit State
+    const [isEditingCourse, setIsEditingCourse] = useState(false);
+    const [courseForm, setCourseForm] = useState({ name: '', maxMarks: 100 });
+
     const loadData = async () => {
         try {
             const contentData = await apiGet(`/instructor/courses/${id}/content`);
             setCourseData(contentData);
+            setCourseForm({
+                name: contentData.course.Name || contentData.course.CourseName,
+                maxMarks: contentData.course.Max_Marks || 100
+            });
             
             // Expand all weeks by default if first load
             if (Object.keys(expandedWeeks).length === 0 && contentData.weeks) {
@@ -50,6 +59,25 @@ const InstructorCourseDetails = () => {
             console.error(err);
         }
         setLoading(false);
+    };
+
+    const handleUpdateCourse = async (e) => {
+        e.preventDefault();
+        setUploading(true);
+        try {
+            await apiPut(`/instructor/courses/${id}`, {
+                name: courseForm.name,
+                maxMarks: parseInt(courseForm.maxMarks)
+            });
+            setMsg({ text: 'Course metadata updated.', type: 'success' });
+            setIsEditingCourse(false);
+            loadData();
+            setTimeout(() => setMsg({ text: '', type: '' }), 3000);
+        } catch (err) {
+            setMsg({ text: err.response?.data?.message || err.message, type: 'error' });
+        } finally {
+            setUploading(false);
+        }
     };
 
     useEffect(() => {
@@ -93,7 +121,7 @@ const InstructorCourseDetails = () => {
 
     const handleAddWeek = async () => {
         try {
-            const weekNumber = weeks.length + 1;
+            const weekNumber = (courseData.weeks || []).length + 1;
             await instructorAPI.addWeek({
                 courseId: id,
                 weekNumber,
@@ -119,7 +147,7 @@ const InstructorCourseDetails = () => {
                 startTime: lectureForm.startTime,
                 endTime: lectureForm.endTime
             };
-            await apiPost('/instructor/courses/lectures', payload);
+            await apiPost('/instructor/lectures', payload);
             
             setMsg({ text: 'Lecture scheduled successfully!', type: 'success' });
             setLectureForm({ title: '', date: '', startTime: '', endTime: '' });
@@ -135,7 +163,6 @@ const InstructorCourseDetails = () => {
     };
 
     const handleDeleteMaterial = async (mId) => {
-        if (!window.confirm("Are you sure you want to decommission this resource?")) return;
         try {
             await apiDelete(`/instructor/materials/${mId}`);
             setMsg({ text: 'Resource removed.', type: 'success' });
@@ -144,22 +171,22 @@ const InstructorCourseDetails = () => {
         } catch (err) {
             setMsg({ text: err.response?.data?.message || err.message, type: 'error' });
         }
+        setConfirmDelete(null);
     };
 
     const handleDeleteLecture = async (lId) => {
-        if (!window.confirm("Remove this lecture session?")) return;
         try {
-            await apiDelete(`/instructor/courses/lectures/${lId}`);
+            await apiDelete(`/instructor/lectures/${lId}`);
             setMsg({ text: 'Lecture removed.', type: 'success' });
             loadData();
             setTimeout(() => setMsg({ text: '', type: '' }), 3000);
         } catch (err) {
             setMsg({ text: err.response?.data?.message || err.message, type: 'error' });
         }
+        setConfirmDelete(null);
     };
 
     const handleDeleteWeek = async (wId) => {
-        if (!window.confirm("WARNING: This will delete the entire week and all its materials. Continue?")) return;
         try {
             await apiDelete(`/instructor/weeks/${wId}`);
             setMsg({ text: 'Week decommissioned.', type: 'success' });
@@ -168,6 +195,7 @@ const InstructorCourseDetails = () => {
         } catch (err) {
             setMsg({ text: err.response?.data?.message || err.message, type: 'error' });
         }
+        setConfirmDelete(null);
     };
 
     if (loading) {
@@ -191,6 +219,17 @@ const InstructorCourseDetails = () => {
 
     const { course, weeks, lectures, assignments } = courseData;
 
+    const toggleAllWeeks = () => {
+        const anyCollapsed = (weeks || []).some(w => !expandedWeeks[w.WeekID]);
+        if (anyCollapsed) {
+            const allExpandedObj = {};
+            (weeks || []).forEach(w => { allExpandedObj[w.WeekID] = true });
+            setExpandedWeeks(allExpandedObj);
+        } else {
+            setExpandedWeeks({});
+        }
+    };
+
     const renderTabContent = () => {
         switch (activeTab) {
             case 'course':
@@ -208,10 +247,10 @@ const InstructorCourseDetails = () => {
                                         <Plus size={12} /> Add Week
                                     </button>
                                     <button 
-                                        onClick={() => setExpandedWeeks({})}
-                                        className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                                        onClick={toggleAllWeeks}
+                                        className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                                     >
-                                        Collapse all
+                                        {(weeks || []).some(w => !expandedWeeks[w.WeekID]) ? 'Expand all' : 'Collapse all'}
                                     </button>
                                 </div>
                             </div>
@@ -270,8 +309,11 @@ const InstructorCourseDetails = () => {
                                                 <Plus size={14} /> Lecture
                                             </button>
                                             <button 
-                                                onClick={() => handleDeleteWeek(week.WeekID)}
-                                                className="p-2 text-slate-300 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                                onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    setConfirmDelete({ type: 'week', id: week.WeekID, title: `Week ${week.Week_Number}` });
+                                                }}
+                                                className="p-2 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
                                             >
                                                 <Trash2 size={16} />
                                             </button>
@@ -422,10 +464,13 @@ const InstructorCourseDetails = () => {
                                                                 </div>
                                                                 
                                                                 <button 
-                                                                    onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(mat.MaterialID); }} 
-                                                                    className="ml-auto p-2 text-slate-300 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl"
+                                                                    onClick={(e) => { 
+                                                                        e.stopPropagation(); 
+                                                                        setConfirmDelete({ type: 'material', id: mat.MaterialID, title: mat.Title });
+                                                                    }} 
+                                                                    className="ml-auto p-2 text-slate-400 hover:text-red-500 dark:hover:text-red-400 transition-all hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl"
                                                                 >
-                                                                    <X size={18} />
+                                                                    <Trash2 size={18} />
                                                                 </button>
                                                             </div>
                                                         );
@@ -445,10 +490,10 @@ const InstructorCourseDetails = () => {
                                                                 </span>
                                                             </div>
                                                             <button 
-                                                                onClick={() => handleDeleteLecture(lec.LectureID)}
+                                                                onClick={(e) => { e.stopPropagation(); handleDeleteLecture(lec.LectureID); }}
                                                                 className="ml-auto p-2 text-slate-300 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl"
                                                             >
-                                                                <X size={18} />
+                                                                <Trash2 size={18} />
                                                             </button>
                                                         </div>
                                                     ))}
@@ -473,8 +518,6 @@ const InstructorCourseDetails = () => {
                 return <GradesTab courseId={id} role="instructor" />;
             case 'activities':
                 return <ActivitiesTab assignments={courseData?.assignments} courseId={id} role="instructor" onRefresh={loadData} />;
-            case 'competencies':
-                return <CompetenciesTab />;
             default:
                 return null;
         }
@@ -485,8 +528,7 @@ const InstructorCourseDetails = () => {
         { id: 'participants', label: 'Participants', icon: <Users size={16} /> },
         { id: 'grades', label: 'Grades', icon: <Award size={16} /> },
         { id: 'attendance', label: 'Attendance', icon: <Calendar size={16} /> },
-        { id: 'activities', label: 'Activities', icon: <ClipboardList size={16} /> },
-        { id: 'competencies', label: 'Competencies', icon: <Target size={16} /> }
+        { id: 'activities', label: 'Activities', icon: <ClipboardList size={16} /> }
     ];
 
     return (
@@ -518,9 +560,17 @@ const InstructorCourseDetails = () => {
                 {/* Course Header */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                     <div className="space-y-2">
-                        <h1 className="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter uppercase leading-none">
-                            {course.CourseName}
-                        </h1>
+                        <div className="flex items-center gap-4">
+                            <h1 className="text-4xl font-black text-slate-900 dark:text-white italic tracking-tighter uppercase leading-none">
+                                {course.CourseName || course.Name}
+                            </h1>
+                            <button 
+                                onClick={() => setIsEditingCourse(true)}
+                                className="p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl text-slate-400 hover:text-blue-600 transition-all shadow-sm"
+                            >
+                                <Edit2 size={16} />
+                            </button>
+                        </div>
                         <p className="text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-[0.4em] ml-1">Terminal Master Instance</p>
                     </div>
                 </div>
@@ -594,6 +644,88 @@ const InstructorCourseDetails = () => {
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Edit Course Modal */}
+            <AnimatePresence>
+                {isEditingCourse && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md">
+                        <motion.div 
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-white dark:bg-slate-900 rounded-[3rem] w-full max-w-md overflow-hidden shadow-2xl border border-slate-100 dark:border-white/5 p-10"
+                        >
+                            <div className="flex justify-between items-center mb-8">
+                                <h3 className="text-2xl font-black text-slate-900 dark:text-white uppercase tracking-tighter italic">Course Optimization</h3>
+                                <button onClick={() => setIsEditingCourse(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-full transition-colors"><X size={20}/></button>
+                            </div>
+                            
+                            <form onSubmit={handleUpdateCourse} className="space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Course Designation</label>
+                                    <input 
+                                        type="text" 
+                                        value={courseForm.name}
+                                        onChange={(e) => setCourseForm({ ...courseForm, name: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none text-slate-800 dark:text-white italic"
+                                        placeholder="Course Name"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Maximum Scale (Points)</label>
+                                    <input 
+                                        type="number" 
+                                        value={courseForm.maxMarks}
+                                        onChange={(e) => setCourseForm({ ...courseForm, maxMarks: e.target.value })}
+                                        className="w-full bg-slate-50 dark:bg-white/5 border-none rounded-2xl p-4 text-sm font-bold focus:ring-2 focus:ring-blue-500/20 outline-none text-slate-800 dark:text-white italic"
+                                        placeholder="Max Marks"
+                                    />
+                                </div>
+                                
+                                <button 
+                                    type="submit"
+                                    disabled={uploading}
+                                    className="w-full py-5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-black uppercase tracking-[0.3em] text-[11px] shadow-xl active:scale-95 transition-all mt-4 flex items-center justify-center gap-3 disabled:opacity-50"
+                                >
+                                    {uploading ? <Loader2 className="animate-spin" size={16} /> : 'Synchronize Changes'}
+                                </button>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+            {/* Custom Confirm Modal */}
+            {confirmDelete && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 bg-red-100 dark:bg-red-500/20 rounded-2xl flex items-center justify-center text-red-600 dark:text-red-400 mb-6 mx-auto">
+                            <Trash2 size={32} />
+                        </div>
+                        <h3 className="text-xl font-black text-center text-slate-800 dark:text-white mb-2 uppercase italic tracking-tight">Confirm Removal</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-center text-sm mb-8">
+                            Are you sure you want to decommission <span className="font-bold text-slate-700 dark:text-slate-200">"{confirmDelete.title}"</span>? This action cannot be reversed.
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setConfirmDelete(null)}
+                                className="flex-1 px-6 py-3 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors uppercase text-xs tracking-widest"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    if (confirmDelete.type === 'week') handleDeleteWeek(confirmDelete.id);
+                                    else if (confirmDelete.type === 'material') handleDeleteMaterial(confirmDelete.id);
+                                    else if (confirmDelete.type === 'lecture') handleDeleteLecture(confirmDelete.id);
+                                }}
+                                className="flex-1 px-6 py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-colors uppercase text-xs tracking-widest shadow-lg shadow-red-500/30"
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

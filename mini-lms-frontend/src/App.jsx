@@ -35,6 +35,7 @@ import ResetPassword from './pages/ResetPassword';
 import Calendar from './pages/Calendar';
 import Discussions from './pages/Discussions';
 import Analytics from './pages/Analytics';
+import Messages from './pages/Messages';
 
 // Assistant Pages
 import AssistantDashboard from './pages/assistant/AssistantDashboard';
@@ -143,6 +144,8 @@ const SocketWrapper = ({ toggleTheme, isDarkMode, location }) => {
 
                             {/* Common */}
                             <Route path="/profile" element={<PageWrapper><Profile /></PageWrapper>} />
+                            <Route path="/profile/:id" element={<PageWrapper><Profile /></PageWrapper>} />
+                            <Route path="/messages" element={<PageWrapper><Messages /></PageWrapper>} />
                             
                             {/* Default Dashboard Redirect when logged in */}
                             <Route path="/dashboard" element={<DashboardRedirect />} />

@@ -12,27 +12,29 @@ import { instructorAPI, assistantAPI, studentAPI } from '../../services/api';
  * Supports task management for staff and task viewing for students.
  */
 const ActivitiesTab = ({ 
-    assignments: initialAssignments = [], 
+    assignments: propAssignments = [], 
     courseId, 
     role = 'student',
     onRefresh 
 }) => {
     const navigate = useNavigate();
-    const [assignments, setAssignments] = useState(initialAssignments);
+    const [assignments, setAssignments] = useState(propAssignments);
     const [quizzes, setQuizzes] = useState([]);
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingAssignment, setEditingAssignment] = useState(null);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterType, setFilterType] = useState('all'); // all | assignment | quiz | midterm
+    const [sortOrder, setSortOrder] = useState('newest'); // newest | oldest | points-high | points-low
     const [formData, setFormData] = useState({
         title: '',
         maxScore: 100,
-        deadline: ''
+        deadline: '',
+        type: 'Assignment'
     });
 
-    // Load initial data and quizzes
+    // Load quizzes separately, only when courseId changes
     useEffect(() => {
-        setAssignments(initialAssignments);
         const loadQuizzes = async () => {
             if (!courseId) return;
             try {
@@ -44,7 +46,14 @@ const ActivitiesTab = ({
             }
         };
         loadQuizzes();
-    }, [initialAssignments, courseId, role]);
+    }, [courseId, role]);
+
+    // Sync assignments only if the prop actually changes reference (and it's provided)
+    useEffect(() => {
+        if (propAssignments) {
+            setAssignments(propAssignments);
+        }
+    }, [propAssignments]);
 
     const handleCreateOrUpdate = async (e) => {
         e.preventDefault();
@@ -60,7 +69,7 @@ const ActivitiesTab = ({
             if (onRefresh) onRefresh();
             setShowAddModal(false);
             setEditingAssignment(null);
-            setFormData({ title: '', maxScore: 100, deadline: '' });
+            setFormData({ title: '', maxScore: 100, deadline: '', type: 'Assignment' });
         } catch (err) {
             console.error("Assignment Operation Error:", err);
             alert("Protocol Failure: Failed to deploy assignment data.");
@@ -85,18 +94,27 @@ const ActivitiesTab = ({
         setFormData({
             title: a.Title,
             maxScore: a.Max_Score || a.MaxScore || 100,
-            deadline: a.Deadline ? new Date(a.Deadline).toISOString().slice(0, 16) : ''
+            deadline: a.Deadline ? new Date(a.Deadline).toISOString().slice(0, 16) : '',
+            type: a.Type || 'Assignment'
         });
         setShowAddModal(true);
     };
 
-    // Merge and filter
+    // Merge, filter and sort
     const allActivities = [
-        ...(assignments || []).map(a => ({ ...a, type: 'assignment' })),
+        ...(assignments || []).map(a => ({ ...a, type: a.Type?.toLowerCase() || 'assignment' })),
         ...(quizzes || []).map(q => ({ ...q, type: 'quiz', AssignmentID: `q-${q.QuizID}`, Title: q.Title, Deadline: q.Deadline, MaxScore: q.Max_Score }))
-    ].filter(a => 
-        (a.Title || '').toLowerCase().includes(searchTerm.toLowerCase())
-    ).sort((a, b) => new Date(b.Deadline || 0) - new Date(a.Deadline || 0));
+    ].filter(a => {
+        const matchesSearch = (a.Title || '').toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesType = filterType === 'all' || a.type.toLowerCase() === filterType.toLowerCase();
+        return matchesSearch && matchesType;
+    }).sort((a, b) => {
+        if (sortOrder === 'newest') return new Date(b.Deadline || 0) - new Date(a.Deadline || 0);
+        if (sortOrder === 'oldest') return new Date(a.Deadline || 0) - new Date(b.Deadline || 0);
+        if (sortOrder === 'points-high') return (b.Max_Score || b.MaxScore || 0) - (a.Max_Score || a.MaxScore || 0);
+        if (sortOrder === 'points-low') return (a.Max_Score || a.MaxScore || 0) - (b.Max_Score || b.MaxScore || 0);
+        return 0;
+    });
 
     const isStaff = role === 'instructor' || role === 'assistant';
 
@@ -137,21 +155,47 @@ const ActivitiesTab = ({
                 )}
             </div>
 
-            {/* Filter Bar for Staff */}
-            {isStaff && (
-                <div className="flex items-center gap-4 bg-white dark:bg-slate-900/40 p-2 rounded-[1.8rem] border border-slate-100 dark:border-white/5 shadow-sm">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input 
-                            type="text" 
-                            placeholder="Search active tasks..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 bg-transparent border-none rounded-2xl text-sm focus:ring-0 outline-none text-slate-800 dark:text-white italic font-bold"
-                        />
-                    </div>
+            {/* Filter & Sort Bar */}
+            <div className="flex flex-wrap items-center gap-4 bg-white dark:bg-slate-900/40 p-3 rounded-[1.8rem] border border-slate-100 dark:border-white/5 shadow-sm">
+                <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input 
+                        type="text" 
+                        placeholder="Search tasks..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-white/5 border-none rounded-2xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none text-slate-800 dark:text-white italic font-bold"
+                    />
                 </div>
-            )}
+                
+                <div className="flex items-center gap-2">
+                    <Filter className="text-slate-400" size={16} />
+                    <select 
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value)}
+                        className="bg-slate-50 dark:bg-white/5 border-none rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-600 dark:text-slate-400 italic"
+                    >
+                        <option value="all">All Types</option>
+                        <option value="assignment">Assignments</option>
+                        <option value="quiz">Quizzes</option>
+                        <option value="midterm">Midterms</option>
+                    </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest italic ml-2">Sort:</span>
+                    <select 
+                        value={sortOrder}
+                        onChange={(e) => setSortOrder(e.target.value)}
+                        className="bg-slate-50 dark:bg-white/5 border-none rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-600 dark:text-slate-400 italic"
+                    >
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="points-high">Points: High to Low</option>
+                        <option value="points-low">Points: Low to High</option>
+                    </select>
+                </div>
+            </div>
 
             <div className="grid grid-cols-1 gap-4">
                 {allActivities.map((a) => {
@@ -175,7 +219,15 @@ const ActivitiesTab = ({
                                     {a.type === 'quiz' ? <Zap size={28} /> : <ClipboardList size={28} />}
                                 </div>
                                 <div>
-                                    <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-tight italic group-hover:text-blue-600 transition-colors">{a.Title}</h3>
+                                    <div className="flex items-center gap-3">
+                                        <h3 className="text-base font-black text-slate-800 dark:text-white uppercase tracking-tight italic group-hover:text-blue-600 transition-colors">{a.Title}</h3>
+                                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-md border ${
+                                            a.type === 'quiz' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 
+                                            (a.type === 'midterm' ? 'bg-purple-500/10 text-purple-500 border-purple-500/20' : 'bg-blue-500/10 text-blue-500 border-blue-500/20')
+                                        }`}>
+                                            {a.type}
+                                        </span>
+                                    </div>
                                     <div className="flex items-center gap-4 mt-2">
                                         <div className="flex items-center gap-2">
                                             <Clock size={12} className="text-slate-400" />
@@ -206,9 +258,9 @@ const ActivitiesTab = ({
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            {a.type === 'assignment' && (
+                                            {(a.type === 'assignment' || a.type === 'midterm') && (
                                                 <button 
-                                                    onClick={(e) => { e.stopPropagation(); navigate(`/instructor/submissions?assignmentId=${a.AssignmentID}`); }}
+                                                    onClick={(e) => { e.stopPropagation(); navigate(`/${role === 'assistant' ? 'assistant' : 'instructor'}/submissions?assignmentId=${a.AssignmentID}`); }}
                                                     className="px-4 py-2 bg-blue-600/10 text-blue-600 text-[9px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-600 hover:text-white transition-all italic border border-blue-600/20"
                                                 >
                                                     Verify
@@ -259,16 +311,30 @@ const ActivitiesTab = ({
                             </div>
 
                             <form onSubmit={handleCreateOrUpdate} className="p-12 space-y-8">
-                                <div className="space-y-3">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4 italic">Assignment Designation</label>
-                                    <input 
-                                        required
-                                        type="text" 
-                                        value={formData.title}
-                                        onChange={e => setFormData({...formData, title: e.target.value})}
-                                        className="w-full bg-slate-100 dark:bg-white/5 border border-transparent focus:border-blue-500/50 rounded-2xl p-5 text-sm font-bold outline-none transition-all dark:text-white placeholder:text-slate-400 italic"
-                                        placeholder="e.g. SYSTEMS ANALYSIS 01"
-                                    />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4 italic">Activity Type</label>
+                                        <select 
+                                            value={formData.type}
+                                            onChange={e => setFormData({...formData, type: e.target.value})}
+                                            className="w-full bg-slate-100 dark:bg-white/5 border border-transparent focus:border-blue-500/50 rounded-2xl p-5 text-sm font-bold outline-none transition-all dark:text-white italic cursor-pointer"
+                                        >
+                                            <option value="Assignment">Assignment</option>
+                                            <option value="Quiz">Quiz</option>
+                                            <option value="Midterm">Midterm</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-4 italic">Designation</label>
+                                        <input 
+                                            required
+                                            type="text" 
+                                            value={formData.title}
+                                            onChange={e => setFormData({...formData, title: e.target.value})}
+                                            className="w-full bg-slate-100 dark:bg-white/5 border border-transparent focus:border-blue-500/50 rounded-2xl p-5 text-sm font-bold outline-none transition-all dark:text-white placeholder:text-slate-400 italic"
+                                            placeholder="e.g. SYSTEMS ANALYSIS 01"
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-8">

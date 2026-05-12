@@ -11,9 +11,13 @@ import { SkeletonTable } from '../Skeletons';
  */
 const GradesTab = ({ courseId, role = 'student' }) => {
     const [grades, setGrades] = useState([]);
+    const [weights, setWeights] = useState({ AssignmentWeight: 40, QuizWeight: 20, AttendanceWeight: 10, FinalWeight: 30 });
     const [grade, setGrade] = useState(null); // For single student view
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showWeightModal, setShowWeightModal] = useState(false);
+    const [weightForm, setWeightForm] = useState(weights);
+    const [savingWeights, setSavingWeights] = useState(false);
 
     useEffect(() => {
         const load = async () => {
@@ -25,8 +29,13 @@ const GradesTab = ({ courseId, role = 'student' }) => {
                     setGrade(courseGrade);
                 } else {
                     const api = role === 'instructor' ? instructorAPI : assistantAPI;
-                    const { data } = await api.getCourseGrades(courseId);
-                    setGrades(data.data || data || []);
+                    const response = await api.getCourseGrades(courseId);
+                    const data = response.data?.data || response.data || response || {};
+                    setGrades(data.grades || []);
+                    if (data.weights) {
+                        setWeights(data.weights);
+                        setWeightForm(data.weights);
+                    }
                 }
             } catch (err) {
                 console.error("Load Grades Error:", err);
@@ -36,6 +45,38 @@ const GradesTab = ({ courseId, role = 'student' }) => {
         };
         load();
     }, [courseId, role]);
+
+    const handleUpdateWeights = async (e) => {
+        e.preventDefault();
+        const total = Number(weightForm.AssignmentWeight) + Number(weightForm.QuizWeight) + 
+                      Number(weightForm.AttendanceWeight) + Number(weightForm.FinalWeight);
+        
+        if (total !== 100) {
+            alert(`Total weights must sum to 100%. Current sum: ${total}%`);
+            return;
+        }
+
+        setSavingWeights(true);
+        try {
+            const api = role === 'instructor' ? instructorAPI : assistantAPI;
+            await api.updateCourseWeights(courseId, {
+                assignmentWeight: Number(weightForm.AssignmentWeight),
+                quizWeight: Number(weightForm.QuizWeight),
+                attendanceWeight: Number(weightForm.AttendanceWeight),
+                finalWeight: Number(weightForm.FinalWeight)
+            });
+            setWeights(weightForm);
+            setShowWeightModal(false);
+            // Reload grades to apply new weights
+            const response = await api.getCourseGrades(courseId);
+            const data = response.data?.data || response.data || response || {};
+            setGrades(data.grades || []);
+        } catch (err) {
+            alert("Failed to update weights: " + (err.response?.data?.message || err.message));
+        } finally {
+            setSavingWeights(false);
+        }
+    };
 
     const getStatus = (score) => {
         if (!score && score !== 0) return 'N/A';
@@ -148,6 +189,39 @@ const GradesTab = ({ courseId, role = 'student' }) => {
         lowest: grades.length ? Math.min(...grades.map(g => g.TotalScore || 0)) : '0'
     };
 
+    const handleExport = () => {
+        if (!filteredGrades.length) return;
+        
+        // Define CSV headers
+        const headers = ["Student Name", "Email", "Assignments", "Quizzes", "Attendance", "Final", "Total Score"];
+        
+        // Convert data rows
+        const csvRows = filteredGrades.map(g => [
+            `"${g.FullName || 'Unknown'}"`,
+            `"${g.Email || 'N/A'}"`,
+            (g.AssignmentScore || 0).toFixed(1),
+            (g.QuizScore || 0).toFixed(1),
+            (g.AttendanceScore || 0).toFixed(1),
+            (g.FinalScore || 0).toFixed(1),
+            (g.TotalScore || 0).toFixed(1)
+        ].join(","));
+
+        // Combine headers and rows
+        const csvContent = [headers.join(","), ...csvRows].join("\n");
+
+        // Create and trigger download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute("href", url);
+        link.setAttribute("download", `Grade_Report_Course_${courseId}_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     return (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pt-6">
             {/* Stats Overview */}
@@ -208,10 +282,19 @@ const GradesTab = ({ courseId, role = 'student' }) => {
                         />
                     </div>
                     <div className="flex items-center gap-3">
+                        <button 
+                            onClick={() => setShowWeightModal(true)}
+                            className="p-3.5 bg-blue-50 dark:bg-blue-500/10 text-blue-600 hover:bg-blue-100 rounded-2xl transition-all border border-blue-200 dark:border-blue-500/20 flex items-center gap-2"
+                        >
+                            <TrendingUp size={18} /> <span className="text-[10px] font-black uppercase tracking-widest hidden lg:inline">Grading Weights</span>
+                        </button>
                         <button className="p-3.5 bg-slate-100 dark:bg-white/5 text-slate-400 hover:text-blue-500 rounded-2xl transition-all border border-transparent hover:border-blue-500/20">
                             <Filter size={18} />
                         </button>
-                        <button className="px-6 py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl italic flex items-center gap-2">
+                        <button 
+                            onClick={handleExport}
+                            className="px-6 py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black uppercase tracking-[0.2em] rounded-2xl transition-all hover:scale-[1.02] active:scale-[0.98] shadow-xl italic flex items-center gap-2"
+                        >
                             <Download size={14} /> Export Report
                         </button>
                     </div>
@@ -222,10 +305,10 @@ const GradesTab = ({ courseId, role = 'student' }) => {
                         <thead>
                             <tr className="bg-slate-50/50 dark:bg-white/5 border-b border-slate-100 dark:border-white/5">
                                 <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Student Terminal</th>
-                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Assignments</th>
-                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Assessments</th>
-                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Attendance</th>
-                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right italic">Total Score</th>
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Assignments ({weights.AssignmentWeight}%)</th>
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Quizzes ({weights.QuizWeight}%)</th>
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center italic">Attendance ({weights.AttendanceWeight}%)</th>
+                                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right italic">Weighted Total</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 dark:divide-white/5">
@@ -240,17 +323,17 @@ const GradesTab = ({ courseId, role = 'student' }) => {
                                         </div>
                                     </td>
                                     <td className="px-8 py-6 text-center">
-                                        <span className="text-xs font-black text-slate-600 dark:text-slate-300 italic">{g.AssignmentTotal || 0}</span>
+                                        <span className="text-xs font-black text-slate-600 dark:text-slate-300 italic">{(g.AssignmentScore || 0).toFixed(1)}</span>
                                     </td>
                                     <td className="px-8 py-6 text-center">
-                                        <span className="text-xs font-black text-slate-600 dark:text-slate-300 italic">{g.QuizTotal || 0}</span>
+                                        <span className="text-xs font-black text-slate-600 dark:text-slate-300 italic">{(g.QuizScore || 0).toFixed(1)}</span>
                                     </td>
                                     <td className="px-8 py-6 text-center">
-                                        <span className="text-xs font-black text-slate-600 dark:text-slate-300 italic">{g.AttendanceTotal || 0}%</span>
+                                        <span className="text-xs font-black text-slate-600 dark:text-slate-300 italic">{(g.AttendanceScore || 0).toFixed(1)}</span>
                                     </td>
                                     <td className="px-8 py-6 text-right">
                                         <div className="flex flex-col items-end">
-                                            <span className="text-sm font-black text-slate-900 dark:text-white italic">{g.TotalScore || 0}%</span>
+                                            <span className="text-sm font-black text-slate-900 dark:text-white italic">{(g.TotalScore || 0).toFixed(1)}%</span>
                                             <div className="w-20 h-1.5 bg-slate-100 dark:bg-white/5 rounded-full mt-2 overflow-hidden border border-slate-200 dark:border-white/5">
                                                 <div 
                                                     className={`h-full transition-all duration-1000 ${
@@ -269,6 +352,74 @@ const GradesTab = ({ courseId, role = 'student' }) => {
                     </table>
                 </div>
             </div>
+            {/* Weights Modal */}
+            {showWeightModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 shadow-2xl border border-slate-200 dark:border-white/5"
+                    >
+                        <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase italic tracking-tighter mb-2">Grading Schema</h3>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-8">Define how 100 points are distributed</p>
+                        
+                        <form onSubmit={handleUpdateWeights} className="space-y-6">
+                            {[
+                                { id: 'AssignmentWeight', label: 'Assignments' },
+                                { id: 'QuizWeight', label: 'Quizzes' },
+                                { id: 'AttendanceWeight', label: 'Attendance' },
+                                { id: 'FinalWeight', label: 'Final Assessment' }
+                            ].map(field => (
+                                <div key={field.id} className="flex items-center justify-between">
+                                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">{field.label}</label>
+                                    <div className="flex items-center gap-3">
+                                        <input 
+                                            type="number"
+                                            value={weightForm[field.id]}
+                                            onChange={(e) => setWeightForm({ ...weightForm, [field.id]: e.target.value })}
+                                            className="w-20 px-4 py-2 bg-slate-100 dark:bg-white/5 rounded-xl text-center font-black text-sm outline-none focus:ring-2 ring-blue-500/50"
+                                            min="0"
+                                            max="100"
+                                        />
+                                        <span className="text-xs font-bold text-slate-400">%</span>
+                                    </div>
+                                </div>
+                            ))}
+
+                            <div className="pt-6 border-t border-slate-100 dark:border-white/5 mt-6">
+                                <div className="flex justify-between items-center mb-6">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Sum</span>
+                                    <span className={`text-lg font-black italic ${
+                                        Number(weightForm.AssignmentWeight) + Number(weightForm.QuizWeight) + 
+                                        Number(weightForm.AttendanceWeight) + Number(weightForm.FinalWeight) === 100
+                                        ? 'text-emerald-500' : 'text-red-500'
+                                    }`}>
+                                        {Number(weightForm.AssignmentWeight) + Number(weightForm.QuizWeight) + 
+                                         Number(weightForm.AttendanceWeight) + Number(weightForm.FinalWeight)}%
+                                    </span>
+                                </div>
+                                
+                                <div className="flex gap-4">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setShowWeightModal(false)}
+                                        className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button 
+                                        type="submit"
+                                        disabled={savingWeights}
+                                        className="flex-1 py-4 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                                    >
+                                        {savingWeights ? 'Saving...' : 'Apply Weights'}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </motion.div>
+                </div>
+            )}
         </motion.div>
     );
 };

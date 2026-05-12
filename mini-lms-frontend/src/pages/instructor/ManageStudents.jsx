@@ -11,6 +11,7 @@ const ManageStudents = () => {
     const [form, setForm] = useState({ fullName: '', email: '', password: '' });
     const [enrollForm, setEnrollForm] = useState({ studentId: '', courseId: '' });
     const [loading, setLoading] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(null);
 
     useEffect(() => { loadData(); }, []);
 
@@ -37,13 +38,20 @@ const ManageStudents = () => {
         setLoading(false);
     };
 
-    const handleDelete = async (id) => {
-        if (!confirm('Are you sure?')) return;
-        try {
-            await apiDelete(`/instructor/students/${id}`);
-            showToast('Student deleted successfully!', 'success');
-            loadData();
-        } catch (err) { showToast(err.message, 'error'); }
+    const handleDelete = (studentId) => {
+        apiDelete(`/instructor/students/${studentId}`)
+            .then(() => {
+                showToast('Student deleted successfully!', 'success');
+                loadData();
+            })
+            .catch((error) => {
+                console.error('Delete failed:', error);
+                const msg = error?.response?.data?.message || error?.message || 'Unknown error occurred';
+                showToast(`Delete failed: ${msg}`, 'error');
+            })
+            .finally(() => {
+                setConfirmDelete(null);
+            });
     };
 
     const handleEnroll = async (e) => {
@@ -200,7 +208,8 @@ const ManageStudents = () => {
                                     </div>
                                     
                                     <button 
-                                        onClick={() => handleDelete(s.UserID)} 
+                                        type="button"
+                                        onClick={() => setConfirmDelete({ id: s.UserID, name: s.FullName })}
                                         className="w-12 h-12 flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500 rounded-2xl transition-all hover:shadow-lg hover:shadow-red-500/20 active:scale-90"
                                     >
                                         <Trash2 size={20} />
@@ -211,6 +220,34 @@ const ManageStudents = () => {
                     </div>
                 </div>
             </div>
+            {/* Custom Confirm Modal */}
+            {confirmDelete && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-700 animate-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 bg-red-100 dark:bg-red-500/20 rounded-2xl flex items-center justify-center text-red-600 dark:text-red-400 mb-6 mx-auto">
+                            <Trash2 size={32} />
+                        </div>
+                        <h3 className="text-xl font-black text-center text-slate-800 dark:text-white mb-2 uppercase italic tracking-tight">Revoke Access</h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-center text-sm mb-8">
+                            Are you sure you want to permanently remove <span className="font-bold text-slate-700 dark:text-slate-200">"{confirmDelete.name}"</span>? All their data will be purged.
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setConfirmDelete(null)}
+                                className="flex-1 px-6 py-3 rounded-xl font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors uppercase text-xs tracking-widest"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={() => handleDelete(confirmDelete.id)}
+                                className="flex-1 px-6 py-3 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-colors uppercase text-xs tracking-widest shadow-lg shadow-red-500/30"
+                            >
+                                Purge
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </motion.div>
     );
 };

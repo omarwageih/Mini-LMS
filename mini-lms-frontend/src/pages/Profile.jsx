@@ -1,64 +1,150 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiGet, apiPost, studentAPI } from '../services/api';
+import api, { apiGet, apiPost, studentAPI, authAPI } from '../services/api';
 import {
     User, Mail, Calendar, Award,
     Settings, Camera, Shield, GraduationCap,
-    Zap, Target, Heart, Edit2, Loader2, X, Sparkles, BookOpen, ShieldCheck, Activity, CheckCircle2
+    Zap, Target, Heart, Edit2, Loader2, X, Sparkles, BookOpen, ShieldCheck, Activity, CheckCircle2, Phone, MessageSquare
 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const Profile = () => {
+    const navigate = useNavigate();
+    const { id } = useParams();
     const [isEditing, setIsEditing] = useState(false);
     
     // Get user from localStorage
-    const initialUser = JSON.parse(localStorage.getItem('user')) || { FullName: 'University User', UserType: 'Student', Email: 'user@mini.edu' };
-    const [userData, setUserData] = useState(initialUser);
-    const user = userData; 
+    const loggedInUser = JSON.parse(localStorage.getItem('user')) || { FullName: 'University User', UserType: 'Student', Email: 'user@mini.edu', Phone: '' };
+    
+    // Only initialize with logged-in user if we are viewing our own profile
+    const isOwnProfile = !id || (loggedInUser.UserID && id.toString() === loggedInUser.UserID.toString());
+    
+    const [userData, setUserData] = useState(isOwnProfile ? loggedInUser : null);
+    const user = userData || {}; 
     const [statsData, setStatsData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
     const [avatarPreview, setAvatarPreview] = useState(null);
+    
+    const getImageUrl = (path) => {
+        if (!path) return null;
+        if (path.startsWith('http')) return path;
+        
+        // Static files are served from the root, not the /api prefix
+        const base = (import.meta.env.VITE_API_URL || 'http://localhost:3000')
+            .replace(/\/api\/?$/, '') // Remove /api if present
+            .replace(/\/$/, '');      // Remove trailing slash
+            
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        return `${base}${cleanPath}`;
+    };
+
+
+    useEffect(() => {
+        const loadProfile = async () => {
+            setLoading(true);
+            setStatsData(null); 
+            setUserData(isOwnProfile ? loggedInUser : null); 
+            try {
+                let fullProfile;
+                if (isOwnProfile) {
+                    const response = await authAPI.getMe();
+                    // Axios response.data contains the user object
+                    fullProfile = response.data;
+                    // Update localStorage with fresh data only for own profile
+                    localStorage.setItem('user', JSON.stringify(fullProfile));
+                } else {
+                    const response = await api.get(`/auth/profile/${id}`);
+                    fullProfile = response.data;
+                }
+                
+                setUserData(fullProfile);
+                
+                // Role-specific stats synchronization
+                if (fullProfile.UserType === 'Student') {
+                    setStatsData({
+                        gpa: fullProfile.GPA,
+                        courseCount: 0,
+                        studentCode: fullProfile.StudentCode
+                    });
+                } else if (fullProfile.UserType === 'Assistant') {
+                    setStatsData({
+                        courseCount: fullProfile.CourseCount || 0,
+                        managedCourses: fullProfile.ManagedCourses || [],
+                        assistantId: fullProfile.UserCode || 'NOT_SET'
+                    });
+                } else if (fullProfile.UserType === 'Instructor') {
+                    setStatsData({
+                        courseCount: fullProfile.CourseCount || 0,
+                        managedCourses: fullProfile.ManagedCourses || []
+                    });
+                }
+                
+                // Fetch dashboard stats for deep performance metrics if it's the own profile
+                if (isOwnProfile) {
+                    try {
+                        const stats = await apiGet('/dashboard/stats');
+                        const gpaItem = stats.find(s => s.label?.includes('GPA') || s.label?.includes('Performance'));
+                        const courseItem = stats.find(s => s.label?.includes('Course') || s.label?.includes('Module') || s.label?.includes('Registered'));
+                        
+                        setStatsData(prev => ({
+                            ...prev,
+                            gpa: gpaItem ? parseFloat(gpaItem.val) : (fullProfile.GPA || 0),
+                            courseCount: courseItem ? parseInt(courseItem.val) : (fullProfile.CourseCount || 0)
+                        }));
+                    } catch (sErr) { 
+                        console.warn("Extended stats fetch failed, falling back to basic profile data.", sErr); 
+                    }
+                }
+            } catch (err) {
+                console.error('Profile load error:', err);
+                if (err.response?.status === 404) {
+                    // Handle user not found
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadProfile();
+    }, [id, isOwnProfile]);
 
     const handleUpdate = async (e) => {
+        if (!isOwnProfile) return;
         e.preventDefault();
         setSyncing(true);
         setIsSuccess(false);
         
         try {
-            // Case-insensitive check for student role
+            if (!userData) return;
             const isStudent = user.UserType?.toLowerCase() === 'student';
+
+            const syncData = {
+                fullName: user.FullName || '',
+                email: user.Email || '',
+                phone: user.Phone || '',
+                userCode: isStudent ? user.StudentCode : user.UserCode,
+                academicYear: parseInt(user.Academic_Year) || 1,
+                major: user.Major || 'Computer Engineering',
+                gpa: parseFloat(user.GPA) || 0
+            };
+            
+            await authAPI.updateProfile(syncData);
             
             if (isStudent) {
-                // Prepare sync data with defaults
-                const syncData = {
-                    fullName: userData.FullName || '',
-                    email: userData.Email || '',
-                    academicYear: parseInt(userData.Academic_Year) || 1,
-                    major: userData.Major || 'Computer Engineering',
-                    gpa: parseFloat(userData.GPA) || 0,
-                    studentCode: userData.StudentCode || ''
-                };
-                
-                await studentAPI.updateProfile(syncData);
-                
-                // Update statsData so UI elements (like the GPA circle) reflect changes immediately
                 setStatsData(prev => ({
                     ...prev,
                     gpa: syncData.gpa,
-                    studentCode: syncData.studentCode
+                    studentCode: syncData.userCode
                 }));
             }
             
-            // 1. Mark as success
             setIsSuccess(true);
-            
-            // 2. Update local session
             localStorage.setItem('user', JSON.stringify(userData));
             window.dispatchEvent(new Event('userUpdated'));
             
-            // 3. Finalize after animation
             setTimeout(() => {
                 setIsEditing(false);
                 setSyncing(false);
@@ -74,10 +160,10 @@ const Profile = () => {
     };
 
     const handleFileChange = async (e) => {
+        if (!isOwnProfile) return;
         const file = e.target.files[0];
         if (!file) return;
 
-        // Show instant preview
         const previewUrl = URL.createObjectURL(file);
         setAvatarPreview(previewUrl);
 
@@ -109,48 +195,6 @@ const Profile = () => {
             setUploading(false);
         }
     };
-
-    useEffect(() => {
-        const loadStats = async () => {
-            try {
-                // If student, get full dashboard data for sync
-                if (initialUser.UserType === 'Student') {
-                    const { studentAPI } = await import('../services/api');
-                    const dashData = await studentAPI.getDashboard().then(r => r.data);
-                    
-                    // Sync userData state with latest from DB
-                    setUserData(prev => ({
-                        ...prev,
-                        FullName: dashData.fullName,
-                        Email: dashData.email,
-                        GPA: dashData.gpa,
-                        StudentCode: dashData.studentCode,
-                        Academic_Year: dashData.academicYear,
-                        Major: dashData.major
-                    }));
-
-                    setStatsData({
-                        gpa: dashData.gpa,
-                        courseCount: dashData.courseCount,
-                        studentCode: dashData.studentCode
-                    });
-                } else {
-                    const stats = await apiGet('/dashboard/stats');
-                    const gpaItem = stats.find(s => s.label?.includes('GPA'));
-                    const courseItem = stats.find(s => s.label?.includes('Course') || s.label?.includes('Section'));
-                    setStatsData({
-                        gpa: gpaItem ? parseFloat(gpaItem.val) : 0,
-                        courseCount: courseItem ? parseInt(courseItem.val) : 0
-                    });
-                }
-            } catch (err) {
-                console.error('Profile fetch error:', err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        loadStats();
-    }, []);
 
     const profileDetails = {
         Department: "Computer Engineering",
@@ -199,15 +243,16 @@ const Profile = () => {
 
                             <div className="relative w-40 h-40 rounded-full bg-white dark:bg-slate-900 p-2 shadow-xl ring-1 ring-slate-200/50 dark:ring-white/5">
                                 <div className="w-full h-full rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center overflow-hidden relative">
-                                    {(avatarPreview || userData.ProfilePicture) ? (
+                                    {(avatarPreview || user.ProfilePicture) ? (
                                         <img 
-                                            src={avatarPreview || `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}${userData.ProfilePicture}`} 
-                                            alt="Profile" 
+                                            src={avatarPreview || getImageUrl(user.ProfilePicture)}
+                                            alt={user.FullName}
                                             className="w-full h-full object-cover"
+                                            onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.FullName || 'User')}&background=random`; }}
                                         />
                                     ) : (
                                         <span className="text-6xl font-black text-white uppercase italic">
-                                            {userData.FullName?.charAt(0)}
+                                            {user.FullName?.charAt(0) || '?'}
                                         </span>
                                     )}
                                     {uploading && (
@@ -217,15 +262,17 @@ const Profile = () => {
                                     )}
                                 </div>
                             </div>
-                            <label className="absolute bottom-2 right-2 p-3.5 bg-white dark:bg-slate-800 text-slate-500 hover:text-[#a78bfa] rounded-full shadow-lg border border-slate-100 dark:border-white/10 hover:scale-110 active:scale-95 transition-all cursor-pointer">
-                                <Camera size={18} />
-                                <input 
-                                    type="file" 
-                                    className="hidden" 
-                                    accept="image/*" 
-                                    onChange={handleFileChange}
-                                />
-                            </label>
+                            {isOwnProfile && (
+                                <label className="absolute bottom-2 right-2 p-3.5 bg-white dark:bg-slate-800 text-slate-500 hover:text-[#a78bfa] rounded-full shadow-lg border border-slate-100 dark:border-white/10 hover:scale-110 active:scale-95 transition-all cursor-pointer">
+                                    <Camera size={18} />
+                                    <input 
+                                        type="file" 
+                                        className="hidden" 
+                                        accept="image/*" 
+                                        onChange={handleFileChange}
+                                    />
+                                </label>
+                            )}
                         </div>
 
                         <div className="space-y-2.5 pb-2">
@@ -243,14 +290,26 @@ const Profile = () => {
                         </div>
                     </div>
 
-                    <motion.button 
-                        whileHover={{ scale: 1.05, y: -2 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => setIsEditing(true)}
-                        className="btn-grad px-8 py-4 text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 flex items-center gap-3"
-                    >
-                        <Sparkles size={16} /> Update Info
-                    </motion.button>
+                    {!isOwnProfile && (
+                        <motion.button 
+                            whileHover={{ scale: 1.05, y: -2 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => navigate('/messages', { state: { userId: user.UserID, fullName: user.FullName } })}
+                            className="bg-indigo-600 text-white px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 flex items-center gap-3 transition-all"
+                        >
+                            <MessageSquare size={16} /> Message
+                        </motion.button>
+                    )}
+                    {isOwnProfile && (
+                        <motion.button 
+                            whileHover={{ scale: 1.05, y: -2 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => setIsEditing(true)}
+                            className="btn-grad px-8 py-4 text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 flex items-center gap-3"
+                        >
+                            <Sparkles size={16} /> Update Info
+                        </motion.button>
+                    )}
                 </motion.div>
 
                 {/* 2. Stats & Info Grid */}
@@ -317,6 +376,20 @@ const Profile = () => {
                                     : 'Verified Faculty Member'
                                 }
                             </div>
+
+                            {/* 📚 Managed Courses List Tooltip-style info */}
+                            {statsData?.managedCourses?.length > 0 && (
+                                <div className="mt-6 w-full px-6 space-y-2">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest text-center mb-3">Active Syllabus Load</p>
+                                    <div className="flex flex-wrap justify-center gap-2">
+                                        {statsData.managedCourses.map((c, i) => (
+                                            <span key={i} className="px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                                                {c.Name}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </motion.div>
 
@@ -327,22 +400,32 @@ const Profile = () => {
                                 <h2 className="text-xl font-black text-slate-950 dark:text-white uppercase tracking-tighter flex items-center gap-3 italic">
                                     <Shield className="text-[#a78bfa]" size={22} /> Identity Terminal
                                 </h2>
-                                <button className="p-3 bg-slate-50 dark:bg-white/5 rounded-full text-slate-300 hover:text-[#a78bfa] transition-all shadow-inner border border-slate-100 dark:border-white/5">
-                                    <Settings size={18} />
-                                </button>
+                                {isOwnProfile && (
+                                    <button 
+                                        onClick={() => setIsEditing(true)}
+                                        className="p-3 bg-slate-50 dark:bg-white/5 rounded-full text-slate-300 hover:text-[#a78bfa] transition-all shadow-inner border border-slate-100 dark:border-white/5"
+                                    >
+                                        <Settings size={18} />
+                                    </button>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-12">
-                                <ModernInfoItem icon={<Mail size={20} />} label="Terminal Email" value={userData.Email} />
+                                <ModernInfoItem icon={<Mail size={20} />} label="Terminal Email" value={user.Email} />
                                 <ModernInfoItem 
                                     icon={<ShieldCheck size={20} />} 
-                                    label="Student ID" 
-                                    value={userData.StudentCode || "NOT_SET"} 
+                                    label={user.UserType === 'Student' ? "Student ID" : (user.UserType === 'Assistant' ? "Assistant ID" : "Instructor ID")} 
+                                    value={user.UserType === 'Student' ? (user.StudentCode || "NOT_SET") : (user.UserCode || "NOT_SET")} 
+                                />
+                                <ModernInfoItem 
+                                    icon={<Phone size={20} />} 
+                                    label="Phone Number" 
+                                    value={user.Phone || "NOT_SET"} 
                                 />
                                 <ModernInfoItem 
                                     icon={<GraduationCap size={20} />} 
                                     label={user.UserType === 'Student' ? "Academic Level" : "Designation"} 
-                                    value={user.UserType === 'Student' ? `Level ${userData.Academic_Year || 4}` : user.UserType} 
+                                    value={user.UserType === 'Student' ? `Level ${user.Academic_Year || 4}` : user.UserType} 
                                 />
                                 <ModernInfoItem icon={<Calendar size={20} />} label="Join Session" value={profileDetails.JoinDate} />
                                 <ModernInfoItem 
@@ -379,23 +462,29 @@ const Profile = () => {
                             <form onSubmit={handleUpdate} className="space-y-6">
                                 <ProfileInput 
                                     label="Full Name" 
-                                    value={userData.FullName} 
-                                    onChange={(e) => setUserData({...userData, FullName: e.target.value})} 
+                                    value={user.FullName || ''} 
+                                    onChange={(e) => setUserData({...user, FullName: e.target.value})} 
                                 />
                                 <ProfileInput 
                                     label="Email Address" 
                                     type="email"
-                                    value={userData.Email} 
-                                    onChange={(e) => setUserData({...userData, Email: e.target.value})} 
+                                    value={user.Email || ''} 
+                                    onChange={(e) => setUserData({...user, Email: e.target.value})} 
+                                />
+                                <ProfileInput 
+                                    label="Phone Number" 
+                                    placeholder="e.g. +201234567890"
+                                    value={user.Phone || ''} 
+                                    onChange={(e) => setUserData({...user, Phone: e.target.value})} 
                                 />
 
-                                {userData.UserType === 'Student' && (
+                                {userData.UserType === 'Student' ? (
                                     <div className="grid grid-cols-2 gap-4">
                                         <ProfileInput 
                                             label="Student ID" 
                                             placeholder="e.g. 20210001"
-                                            value={userData.StudentCode || ''} 
-                                            onChange={(e) => setUserData({...userData, StudentCode: e.target.value})} 
+                                            value={user.StudentCode || ''} 
+                                            onChange={(e) => setUserData({...user, StudentCode: e.target.value})} 
                                         />
                                         <ProfileInput 
                                             label="Current GPA" 
@@ -403,10 +492,17 @@ const Profile = () => {
                                             step="0.01"
                                             min="0"
                                             max="4"
-                                            value={userData.GPA || ''} 
-                                            onChange={(e) => setUserData({...userData, GPA: e.target.value})} 
+                                            value={user.GPA || ''} 
+                                            onChange={(e) => setUserData({...user, GPA: e.target.value})} 
                                         />
                                     </div>
+                                ) : (
+                                    <ProfileInput 
+                                        label={user.UserType === 'Assistant' ? "Assistant ID" : "Instructor ID"} 
+                                        placeholder={user.UserType === 'Assistant' ? "e.g. ASST-101" : "e.g. INST-101"}
+                                        value={user.UserCode || ''} 
+                                        onChange={(e) => setUserData({...user, UserCode: e.target.value})} 
+                                    />
                                 )}
                                 
                                 <button 

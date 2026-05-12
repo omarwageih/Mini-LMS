@@ -36,13 +36,27 @@ const ManageAssistants = () => {
         setLoading(false);
     };
 
-    const handleDelete = async (id) => {
-        if (!confirm('Are you sure?')) return;
-        try {
-            await apiDelete(`/instructor/assistants/${id}`);
-            setMsg({ text: 'Assistant deleted successfully!', type: 'success' });
-            loadData();
-        } catch (err) { setMsg({ text: err.message, type: 'error' }); }
+    const handleDelete = (assistantId) => {
+        // Simple, direct delete handler
+        const confirmed = confirm('Are you sure?');
+        if (!confirmed) return;
+
+        // Show immediate feedback
+        setMsg({ text: 'Deleting assistant...', type: 'info' });
+        
+        // Make the delete request
+        apiDelete(`/instructor/assistants/${assistantId}`)
+            .then(() => {
+                // Success - show message and reload
+                setMsg({ text: 'Assistant deleted successfully!', type: 'success' });
+                loadData();
+            })
+            .catch((error) => {
+                // Error - show what went wrong
+                console.error('Delete failed:', error);
+                const msg = error?.response?.data?.message || error?.message || 'Unknown error occurred';
+                setMsg({ text: `Delete failed: ${msg}`, type: 'error' });
+            });
     };
 
     const handleAssign = async (e) => {
@@ -192,7 +206,11 @@ const ManageAssistants = () => {
                                     </div>
                                 </div>
                                 <button 
-                                    onClick={() => handleDelete(a.UserID)} 
+                                    type="button"
+                                    onClick={() => {
+                                        console.log('Delete button clicked for assistant:', a.UserID, 'Name:', a.FullName);
+                                        handleDelete(a.UserID);
+                                    }}
                                     className="w-12 h-12 flex items-center justify-center text-red-400 hover:text-white hover:bg-red-500 rounded-2xl transition-all hover:shadow-lg hover:shadow-red-500/20 active:scale-90"
                                 >
                                     <Trash2 size={20} />

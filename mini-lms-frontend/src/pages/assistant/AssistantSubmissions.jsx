@@ -1,17 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ClipboardList, Download, User, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { apiGet, apiPost } from '../../services/api';
 
 const AssistantSubmissions = () => {
+    const [searchParams] = useSearchParams();
+    const assignmentIdFilter = searchParams.get('assignmentId');
     const [submissions, setSubmissions] = useState([]);
     const [gradeForm, setGradeForm] = useState({ submissionId: '', score: '' });
     const [msg, setMsg] = useState({ text: '', type: '' });
 
-    useEffect(() => { loadSubmissions(); }, []);
+    useEffect(() => { loadSubmissions(); }, [assignmentIdFilter]);
 
     const loadSubmissions = async () => {
-        try { setSubmissions(await apiGet('/assistant/submissions')); } catch (err) { console.error(err); }
+        try { 
+            let data = await apiGet('/assistant/submissions');
+            if (assignmentIdFilter) {
+                data = data.filter(s => s.AssignmentID.toString() === assignmentIdFilter);
+            }
+            setSubmissions(data); 
+        } catch (err) { console.error(err); }
     };
 
     const handleGrade = async (e) => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Users, ShieldCheck, Mail, BookOpen, ExternalLink, MoreVertical, Search, Filter } from 'lucide-react';
+import { Users, ShieldCheck, Mail, BookOpen, ExternalLink, MoreVertical, Search, Filter, Trash2, MessageSquare, UserPlus } from 'lucide-react';
 import api from '../../services/api';
 import { SkeletonTable } from '../Skeletons';
 
@@ -13,6 +13,31 @@ const ParticipantsTab = ({ courseId, role = 'student' }) => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterRole, setFilterRole] = useState('all');
+    const [activeDropdown, setActiveDropdown] = useState(null);
+
+    // Click away listener for dropdown
+    useEffect(() => {
+        const handleClickAway = (e) => {
+            if (activeDropdown && !e.target.closest('.dropdown-container')) {
+                setActiveDropdown(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickAway);
+        return () => document.removeEventListener('mousedown', handleClickAway);
+    }, [activeDropdown]);
+
+    const getImageUrl = (path) => {
+        if (!path) return null;
+        if (path.startsWith('http')) return path;
+        
+        // Static files are served from the root, not the /api prefix
+        const base = API_URL
+            .replace(/\/api\/?$/, '') // Remove /api if present
+            .replace(/\/$/, '');      // Remove trailing slash
+            
+        const cleanPath = path.startsWith('/') ? path : `/${path}`;
+        return `${base}${cleanPath}`;
+    };
 
     useEffect(() => {
         const load = async () => {
@@ -86,8 +111,8 @@ const ParticipantsTab = ({ courseId, role = 'student' }) => {
 
             {/* View Selection: Table for Staff, Cards for Students */}
             {isStaff ? (
-                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-white/5 overflow-hidden shadow-sm">
-                    <div className="overflow-x-auto">
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-white/5 shadow-sm relative">
+                    <div className="overflow-x-auto overflow-y-visible">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-white/5">
@@ -104,15 +129,20 @@ const ParticipantsTab = ({ courseId, role = 'student' }) => {
                                             <div className="flex items-center gap-3">
                                                 <div className="relative">
                                                     <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-100 dark:border-white/10">
-                                                        {person.ProfilePicture ? (
-                                                            <img src={`${API_URL}${person.ProfilePicture}`} alt={person.FullName} className="w-full h-full object-cover" />
+                                                        {person.ProfilePicture && person.ProfilePicture.trim() !== '' ? (
+                                                            <img 
+                                                    src={getImageUrl(person.ProfilePicture)} 
+                                                    alt={person.FullName} 
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => { e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(person.FullName)}&background=random`; }}
+                                                />
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center text-slate-400 dark:text-slate-500 font-bold bg-slate-50 dark:bg-slate-950">
                                                                 {person.FullName.charAt(0)}
                                                             </div>
                                                         )}
                                                     </div>
-                                                    {person.IsInstructor && (
+                                                    {!!person.IsInstructor && (
                                                         <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-blue-500 border-2 border-white dark:border-slate-900 flex items-center justify-center">
                                                             <ShieldCheck size={8} className="text-white" />
                                                         </div>
@@ -142,13 +172,63 @@ const ParticipantsTab = ({ courseId, role = 'student' }) => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all">
+                                            <div className="flex items-center justify-end gap-2 relative">
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); navigate(`/profile/${person.UserID}`); }}
+                                                    className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                                                    title="View Profile"
+                                                >
                                                     <ExternalLink size={14} />
                                                 </button>
-                                                <button className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all">
-                                                    <MoreVertical size={14} />
-                                                </button>
+                                                {!person.IsInstructor && (
+                                                    <button 
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            if (window.confirm(`Are you sure you want to unenroll ${person.FullName}?`)) {
+                                                                try {
+                                                                    await api.delete(`/instructor/courses/${courseId}/participants/${person.UserID}`);
+                                                                    setParticipants(prev => prev.filter(p => p.UserID !== person.UserID));
+                                                                } catch (err) {
+                                                                    alert("Failed to unenroll participant: " + (err.response?.data?.message || err.message));
+                                                                }
+                                                            }
+                                                        }}
+                                                        className="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-all"
+                                                        title="Unenroll"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                )}
+                                                <div className="relative dropdown-container">
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); setActiveDropdown(activeDropdown === person.UserID ? null : person.UserID); }}
+                                                        className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-all"
+                                                    >
+                                                        <MoreVertical size={14} />
+                                                    </button>
+                                                    {activeDropdown === person.UserID && (
+                                                        <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-100 dark:border-white/5 py-3 z-[60]">
+                                                            <button 
+                                                                onClick={() => { window.location.href = `mailto:${person.Email}`; setActiveDropdown(null); }}
+                                                                className="w-full text-left px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 flex items-center gap-3 transition-colors"
+                                                            >
+                                                                <Mail size={14} /> Send Email
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => { navigate('/messages', { state: { userId: person.UserID, fullName: person.FullName } }); setActiveDropdown(null); }}
+                                                                className="w-full text-left px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 flex items-center gap-3 transition-colors"
+                                                            >
+                                                                <MessageSquare size={14} /> Direct Message
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => { navigator.clipboard.writeText(person.UserID); setActiveDropdown(null); alert('ID Copied!'); }}
+                                                                className="w-full text-left px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5 flex items-center gap-3 transition-colors"
+                                                            >
+                                                                <ShieldCheck size={14} /> Copy User ID
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
@@ -166,16 +246,16 @@ const ParticipantsTab = ({ courseId, role = 'student' }) => {
                             className="p-4 rounded-2xl bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all flex items-center gap-4"
                         >
                             <div className="relative">
-                                <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-700 ring-1 ring-slate-100 dark:ring-white/5">
-                                    {person.ProfilePicture ? (
-                                        <img src={`${API_URL}${person.ProfilePicture}`} alt={person.FullName} className="w-full h-full object-cover" />
+                                <div className="w-12 h-12 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-white dark:border-slate-700 ring-1 ring-slate-100 dark:ring-white/5 cursor-pointer" onClick={() => navigate(`/profile/${person.UserID}`)}>
+                                    {person.ProfilePicture && person.ProfilePicture.trim() !== '' ? (
+                                        <img src={getImageUrl(person.ProfilePicture)} alt={person.FullName} className="w-full h-full object-cover" />
                                     ) : (
                                         <div className="w-full h-full flex items-center justify-center text-slate-400 dark:text-slate-500 font-bold bg-slate-50 dark:bg-slate-950">
                                             {person.FullName.charAt(0)}
                                         </div>
                                     )}
                                 </div>
-                                {(person.IsInstructor || person.IsAssistant) && (
+                                {(!!person.IsInstructor || !!person.IsAssistant) && (
                                     <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full ${person.IsInstructor ? 'bg-blue-500' : 'bg-purple-500'} border-2 border-white flex items-center justify-center shadow-sm`}>
                                         <ShieldCheck size={10} className="text-white" />
                                     </div>
@@ -185,10 +265,10 @@ const ParticipantsTab = ({ courseId, role = 'student' }) => {
                             <div className="flex-1 min-w-0">
                                 <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate flex items-center gap-2">
                                     {person.FullName}
-                                    {person.IsInstructor && (
+                                    {!!person.IsInstructor && (
                                         <span className="text-[9px] font-black bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded uppercase">Instructor</span>
                                     )}
-                                    {person.IsAssistant && (
+                                    {!!person.IsAssistant && (
                                         <span className="text-[9px] font-black bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded uppercase">Assistant</span>
                                     )}
                                 </h3>

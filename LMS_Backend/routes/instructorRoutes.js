@@ -9,12 +9,12 @@ const {
 } = require('../controllers/userManagementController');
 
 const {
-    getCourses, createCourse, deleteCourse, getMyCourses, getCourseContent,
+    getCourses, createCourse, updateCourse, deleteCourse, getMyCourses, getCourseContent,
     addWeek, deleteWeek, addMaterial, deleteMaterial, addLecture, deleteLecture,
     getCourseMaterials, uploadCourseMaterial, deleteCourseMaterial,
     getAnnouncements, createAnnouncement, deleteAnnouncement,
-    getCourseParticipants, getCourseGrades,
-    getCourseAttendance, markAttendance, getCourseQuizzes
+    getCourseParticipants, getCourseGrades, unenrollParticipant,
+    getCourseAttendance, markAttendance, getCourseQuizzes, updateCourseWeights
 } = require('../controllers/courseController');
 
 const {
@@ -42,6 +42,7 @@ router.post('/students/enroll', validate(enrollStudentSchema), enrollStudent);
 // ===== Courses =====
 router.get('/courses', getCourses);
 router.post('/courses', validate(createCourseSchema), createCourse);
+router.put('/courses/:id', validateParams(idParamSchema), updateCourse);
 router.delete('/courses/:id', validateParams(idParamSchema), deleteCourse);
 router.get('/my-courses', getMyCourses);
 router.get('/courses/:courseId/content', requireCourseOwner, getCourseContent);
@@ -56,15 +57,17 @@ router.delete('/weeks/:id', requireCourseOwner, deleteWeek);
 
 // ===== Statistics & Tabs =====
 router.get('/courses/:courseId/participants', requireCourseOwner, getCourseParticipants);
+router.delete('/courses/:courseId/participants/:userId', requireCourseOwner, unenrollParticipant);
 router.get('/courses/:courseId/grades', requireCourseOwner, getCourseGrades);
 router.get('/courses/:courseId/attendance', requireCourseOwner, getCourseAttendance);
 router.post('/attendance/mark', requireCourseOwner, markAttendance);
 router.get('/courses/:courseId/quizzes', requireCourseOwner, getCourseQuizzes);
+router.put('/courses/:courseId/weights', requireCourseOwner, updateCourseWeights);
 
 // ===== Assignments =====
 router.post('/assignments', requireCourseOwner, validate(createAssignmentSchema), createAssignment);
 router.put('/assignments/:id', requireCourseOwner, validateParams(idParamSchema), validate(updateAssignmentSchema), updateAssignment);
-router.delete('/assignments/:id', requireCourseOwner, validateParams(idParamSchema), deleteAssignment);
+router.delete('/assignments/:id', requireCourseOwner, deleteAssignment);
 
 // ===== Submissions & Grading =====
 router.get('/submissions', getSubmissions);

@@ -6,8 +6,9 @@ const fs = require('fs');
 const submissionsDir = path.join(__dirname, '..', 'uploads', 'submissions');
 const materialsDir = path.join(__dirname, '..', 'uploads', 'materials');
 const profilesDir = path.join(__dirname, '..', 'uploads', 'profiles');
+const messagesDir = path.join(__dirname, '..', 'uploads', 'messages');
 
-[submissionsDir, materialsDir, profilesDir].forEach(dir => {
+[submissionsDir, materialsDir, profilesDir, messagesDir].forEach(dir => {
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
@@ -75,4 +76,15 @@ const materialsUpload = multer({
     }
 });
 
-module.exports = { upload, materialsUpload };
+const messageUpload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => cb(null, messagesDir),
+        filename: (req, file, cb) => {
+            const uniqueName = `msg_${Date.now()}_${path.extname(file.originalname)}`;
+            cb(null, uniqueName);
+        }
+    }),
+    limits: { fileSize: 25 * 1024 * 1024 } // 25MB
+});
+
+module.exports = { upload, materialsUpload, messageUpload };

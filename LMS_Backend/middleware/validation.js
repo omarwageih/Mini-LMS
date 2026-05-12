@@ -8,7 +8,7 @@ const registerSchema = z.object({
         .min(8, 'Password must be at least 8 characters')
         .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
         .regex(/[0-9]/, 'Password must contain at least one number'),
-    userType: z.enum(['Student'], { message: 'Only Student registration is allowed here' }),
+    userType: z.enum(['Student', 'Instructor', 'Assistant'], { message: 'Invalid user type' }),
     phone: z.string().optional()
 });
 
@@ -159,6 +159,7 @@ const idParamSchema = z.object({
 
 const updateProfileSchema = z.object({
     fullName: z.string().min(2).max(100).optional(),
+    email: z.string().email('Invalid email format').optional(),
     phone: z.string().optional(),
     studentCode: z.string().optional(),
     academicYear: z.union([z.string(), z.number()]).optional(),

@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-const api = axios.create({
+export const api = axios.create({
     baseURL: `${API_URL}/api`,
     headers: { 'Content-Type': 'application/json' }
 });
@@ -99,6 +99,8 @@ api.interceptors.response.use(
 export const authAPI = {
     login: (data) => api.post('/auth/login', data),
     register: (data) => api.post('/auth/register', data),
+    updateProfile: (data) => api.put('/auth/update-profile', data),
+    getMe: () => api.get('/auth/me'),
     googleLogin: (data) => api.post('/auth/google-login', data),
     forgotPassword: (data) => api.post('/auth/forgot-password', data),
     resetPassword: (data) => api.post('/auth/reset-password', data),
@@ -151,8 +153,10 @@ export const instructorAPI = {
     // Courses
     getCourses: () => api.get('/instructor/courses'),
     createCourse: (data) => api.post('/instructor/courses', data),
+    updateCourse: (id, data) => api.put(`/instructor/courses/${id}`, data),
     getMyCourses: () => api.get('/instructor/my-courses'),
     getCourseContent: (courseId) => api.get(`/instructor/courses/${courseId}/content`),
+    deleteCourse: (id) => api.delete(`/instructor/courses/${id}`),
     // Content
     addWeek: (data) => api.post('/instructor/weeks', data),
     addMaterial: (formData) => api.post('/instructor/materials', formData, {
@@ -161,6 +165,7 @@ export const instructorAPI = {
     addLecture: (data) => api.post('/instructor/lectures', data),
     deleteLecture: (id) => api.delete(`/instructor/lectures/${id}`),
     deleteWeek: (id) => api.delete(`/instructor/weeks/${id}`),
+    deleteMaterial: (id) => api.delete(`/instructor/materials/${id}`),
     // Assignments
     createAssignment: (data) => api.post('/instructor/assignments', data),
     updateAssignment: (id, data) => api.put(`/instructor/assignments/${id}`, data),
@@ -170,6 +175,7 @@ export const instructorAPI = {
     gradeSubmission: (data) => api.post('/instructor/submissions/grade', data),
     // Stats & Tabs
     getCourseParticipants: (courseId) => api.get(`/instructor/courses/${courseId}/participants`),
+    unenrollParticipant: (courseId, userId) => api.delete(`/instructor/courses/${courseId}/participants/${userId}`),
     getCourseGrades: (courseId) => api.get(`/instructor/courses/${courseId}/grades`),
     // Materials
     getCourseMaterials: (courseId) => api.get(`/instructor/courses/${courseId}/materials`),
@@ -183,7 +189,8 @@ export const instructorAPI = {
     deleteAnnouncement: (id) => api.delete(`/instructor/announcements/${id}`),
     getCourseAttendance: (courseId) => api.get(`/instructor/courses/${courseId}/attendance`),
     markAttendance: (data) => api.post('/instructor/attendance/mark', data),
-    getCourseQuizzes: (courseId) => api.get(`/instructor/courses/${courseId}/quizzes`)
+    getCourseQuizzes: (courseId) => api.get(`/instructor/courses/${courseId}/quizzes`),
+    updateCourseWeights: (courseId, data) => api.put(`/instructor/courses/${courseId}/weights`, data)
 };
 
 // ===== Assistant =====
@@ -202,8 +209,25 @@ export const assistantAPI = {
     deleteCourseMaterial: (id) => api.delete(`/assistant/courses/materials/${id}`),
     getCourseAttendance: (courseId) => api.get(`/assistant/courses/${courseId}/attendance`),
     markAttendance: (data) => api.post('/assistant/attendance/mark', data),
+    getCourseContent: (courseId) => api.get(`/assistant/courses/${courseId}/details`),
+    getCourseDetails: (courseId) => api.get(`/assistant/courses/${courseId}/details`),
     addLecture: (data) => api.post('/assistant/lectures', data),
-    getCourseQuizzes: (courseId) => api.get(`/assistant/courses/${courseId}/quizzes`)
+    deleteLecture: (id) => api.delete(`/assistant/lectures/${id}`),
+    deleteMaterial: (id) => api.delete(`/assistant/materials/${id}`),
+    deleteWeek: (id) => api.delete(`/assistant/weeks/${id}`),
+    deleteAssignment: (id) => api.delete(`/assistant/assignments/${id}`),
+    getCourseQuizzes: (courseId) => api.get(`/assistant/courses/${courseId}/quizzes`),
+    updateCourseWeights: (courseId, data) => api.put(`/assistant/courses/${courseId}/weights`, data)
+};
+
+// ===== Messages =====
+export const messageAPI = {
+    getConversations: () => api.get('/messages/conversations'),
+    getConversation: (userId) => api.get(`/messages/${userId}`),
+    sendMessage: (data) => api.post('/messages', data),
+    sendAttachment: (formData) => api.post('/messages/attachment', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+    })
 };
 
 export default api;
@@ -211,7 +235,22 @@ export default api;
 // ===== Generic helpers used by older page imports =====
 // These allow pages that call apiGet('/instructor/...') to work
 // without needing to know which named API group to use.
-export const apiGet    = (url, params) => api.get(url, { params }).then(r => r.data);
-export const apiPost   = (url, data, config) => api.post(url, data, config).then(r => r.data);
-export const apiPut    = (url, data) => api.put(url, data).then(r => r.data);
-export const apiDelete = (url) => api.delete(url).then(r => r.data);
+export const apiGet    = (url, params) => api.get(url, { params }).then(r => r.data).catch(err => {
+    console.error(`GET ${url} failed:`, err);
+    throw err;
+});
+export const apiPost   = (url, data, config) => api.post(url, data, config).then(r => r.data).catch(err => {
+    console.error(`POST ${url} failed:`, err);
+    throw err;
+});
+export const apiPut    = (url, data) => api.put(url, data).then(r => r.data).catch(err => {
+    console.error(`PUT ${url} failed:`, err);
+    throw err;
+});
+export const apiDelete = (url) => api.delete(url).then(r => {
+    console.log(`DELETE ${url} succeeded:`, r.data);
+    return r.data;
+}).catch(err => {
+    console.error(`DELETE ${url} failed:`, err);
+    throw err;
+});

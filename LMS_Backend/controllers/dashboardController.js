@@ -39,10 +39,16 @@ const getStats = async (req, res) => {
                     WHERE c.InstructorID = @id AND sub.Score IS NULL
                 `);
 
+            // 4. Total Courses Managed
+            const courseCount = await pool.request()
+                .input('id', sql.Int, id)
+                .query("SELECT COUNT(*) as total FROM Course WHERE InstructorID = @id");
+
             stats = [
                 { label: 'Total Students', val: studentCount.recordset[0].total.toString(), icon: 'Users', color: 'text-blue-500', bg: 'bg-blue-500/10', path: '/instructor/students' },
                 { label: 'Avg Performance', val: (avgGPA.recordset[0].avg || 0).toFixed(2), icon: 'Award', color: 'text-purple-500', bg: 'bg-purple-500/10', path: '/instructor/students' },
-                { label: 'Pending Reviews', val: pending.recordset[0].total.toString(), icon: 'ClipboardList', color: 'text-cyan-500', bg: 'bg-cyan-500/10', path: '/instructor/submissions' }
+                { label: 'Pending Reviews', val: pending.recordset[0].total.toString(), icon: 'ClipboardList', color: 'text-cyan-500', bg: 'bg-cyan-500/10', path: '/instructor/submissions' },
+                { label: 'My Modules', val: courseCount.recordset[0].total.toString(), icon: 'BookOpen', color: 'text-orange-500', bg: 'bg-orange-500/10', path: '/instructor/my-courses' }
             ];
 
         } else if (type === 'Assistant') {

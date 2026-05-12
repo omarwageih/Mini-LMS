@@ -21,7 +21,7 @@ app.use(helmet({
 
 // CORS configuration to allow requests from the frontend
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: [process.env.FRONTEND_URL || 'http://localhost:5173', 'http://localhost:5174'],
     credentials: true
 }));
 
@@ -62,6 +62,7 @@ const assistantRoutes = require('./routes/assistantRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const messageRoutes = require('./routes/messageRoutes');
 
 // Mount routes to the API path
 app.use('/api/auth', authRoutes);
@@ -70,6 +71,29 @@ app.use('/api/assistant', assistantRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/messages', messageRoutes);
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error(`[UNHANDLED ERROR] ${req.method} ${req.url}:`, {
+        message: err.message,
+        stack: err.stack,
+        code: err.code || err.number
+    });
+
+    // Handle Multer and Upload errors specifically
+    if (err instanceof require('multer').MulterError || err.message.includes('File type not allowed') || err.message.includes('Only PDF')) {
+        return res.status(400).json({ 
+            message: err.message,
+            code: err.code || 'UPLOAD_ERROR'
+        });
+    }
+
+    res.status(err.status || 500).json({
+        message: err.message || "An unexpected internal server error occurred.",
+        error: process.env.NODE_ENV === 'development' ? err : {}
+    });
+});
 
 // ===== Server & Socket Initialization =====
 const runMigrations = require('./database/migrate');

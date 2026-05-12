@@ -2,12 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { materialsUpload } = require('../middleware/upload');
 const { verifyToken, requireRole, requireCourseAssistant } = require('../middleware/authMiddleware');
-const { validate, createAssignmentSchema, assistantGradeSubmissionSchema } = require('../middleware/validation');
+const { validate, createAssignmentSchema, assistantGradeSubmissionSchema, addLectureSchema } = require('../middleware/validation');
 const {
     getCourses, getMyCourses, getCourseContent, addWeek, deleteWeek, addMaterial, deleteMaterial, addLecture, deleteLecture,
     getCourseMaterials, uploadCourseMaterial, deleteCourseMaterial,
     getCourseParticipants, getCourseGrades,
-    getCourseAttendance, markAttendance, getCourseQuizzes
+    getCourseAttendance, markAttendance, getCourseQuizzes, updateCourseWeights
 } = require('../controllers/courseController');
 
 const {
@@ -38,8 +38,9 @@ router.get('/courses/:courseId/participants', requireCourseAssistant, getCourseP
 router.get('/courses/:courseId/grades', requireCourseAssistant, getCourseGrades);
 router.get('/courses/:courseId/attendance', requireCourseAssistant, getCourseAttendance);
 router.post('/attendance/mark', requireCourseAssistant, markAttendance);
-router.post('/lectures', requireCourseAssistant, addLecture);
+router.post('/lectures', requireCourseAssistant, validate(addLectureSchema), addLecture);
 router.get('/courses/:courseId/quizzes', requireCourseAssistant, getCourseQuizzes);
+router.put('/courses/:courseId/weights', requireCourseAssistant, updateCourseWeights);
 
 // ===== Discussions =====
 router.get('/discussions/:courseId', requireCourseAssistant, getDiscussionPosts);

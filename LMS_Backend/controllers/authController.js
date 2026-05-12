@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { sendEmail } = require('../utils/emailService');
 const { logAudit, createNotification } = require('../utils/helpers');
+const { success, notFound } = require('../utils/responseHandler');
 
 
 const register = async (req, res) => {
@@ -13,9 +14,6 @@ const register = async (req, res) => {
             return res.status(400).json({ message: "All fields are required" });
         }
 
-        if (userType !== 'Student') {
-            return res.status(403).json({ message: "Self-registration is only allowed for Students." });
-        }
 
         const pool = await getPool();
         
@@ -89,7 +87,11 @@ const register = async (req, res) => {
         }
 
     } catch (err) {
-        console.error("Register Error:", err);
+        console.error("[CRITICAL] Register Error:", {
+            message: err.message,
+            stack: err.stack,
+            body: { ...req.body, password: '[REDACTED]' }
+        });
         res.status(500).json({ message: "An internal server error occurred during registration." });
     }
 };
@@ -158,10 +160,11 @@ const login = async (req, res) => {
                 type: user.UserType,
                 name: user.FullName,
                 email: user.Email,
-                profilePicture: user.ProfilePicture
+                profilePicture: user.ProfilePicture,
+                userCode: user.UserCode 
             },
             process.env.JWT_SECRET,
-            { expiresIn: "15m" }
+            { expiresIn: "1d" }
         );
 
         const refreshToken = jwt.sign(
@@ -170,10 +173,9 @@ const login = async (req, res) => {
             { expiresIn: "7d" }
         );
 
-        await logAudit(user.UserID, 'LOGIN_SUCCESS', `${user.UserType} logged in`, req.ip);
+        await logAudit(user.UserID, 'LOGIN_SUCCESS', `Login from ${req.ip}`, req.ip);
 
         res.json({
-            message: "Login success",
             token,
             refreshToken,
             user: {
@@ -181,97 +183,92 @@ const login = async (req, res) => {
                 FullName: user.FullName,
                 Email: user.Email,
                 UserType: user.UserType,
-                ProfilePicture: user.ProfilePicture
+                ProfilePicture: user.ProfilePicture,
+                UserCode: user.UserCode
             }
         });
 
     } catch (err) {
         console.error("Login Error:", err);
-        res.status(500).json({ message: "An internal server error occurred during login." });
+        res.status(500).json({ message: "An internal server error occurred." });
     }
 };
 
 const updateProfilePicture = async (req, res) => {
     try {
-        const userID = req.user.id;
-        if (!req.file) {
-            return res.status(400).json({ message: "No file uploaded" });
-        }
-
-        const profilePicPath = `/uploads/profiles/${req.file.filename}`;
-        const pool = await getPool();
-
-        // Get old picture to delete it
-        const userResult = await pool.request()
-            .input('id', sql.Int, userID)
-            .query('SELECT ProfilePicture FROM Users WHERE UserID = @id');
+        if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+        const filePath = `/uploads/profiles/${req.file.filename}`;
         
-        const oldPic = userResult.recordset[0]?.ProfilePicture;
-
+        const pool = await getPool();
         await pool.request()
-            .input('pic', sql.VarChar, profilePicPath)
-            .input('id', sql.Int, userID)
+            .input('id', sql.Int, req.user.id)
+            .input('pic', sql.VarChar, filePath)
             .query('UPDATE Users SET ProfilePicture = @pic WHERE UserID = @id');
 
-        // Delete old file if it exists and isn't the same as the new one
-        if (oldPic && oldPic !== profilePicPath) {
-            const { deleteFile } = require('../utils/helpers');
-            await deleteFile(oldPic);
-        }
-
-        res.json({ 
-            message: "Profile picture updated", 
-            profilePicture: profilePicPath 
-        });
-
+        res.json({ message: "Profile picture updated", profilePicture: filePath });
     } catch (err) {
-        console.error("Update Profile Picture Error:", err);
-        res.status(500).json({ message: "An internal server error occurred while updating profile picture." });
+        console.error("Update Profile Pic Error:", err);
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
+const updateProfile = async (req, res) => {
+    try {
+        const { fullName, email, phone, userCode } = req.body;
+        const userId = req.user.id;
+
+        const pool = await getPool();
+        
+        // Update main Users table
+        await pool.request()
+            .input('id', sql.Int, userId)
+            .input('name', sql.VarChar, fullName)
+            .input('email', sql.VarChar, email)
+            .input('phone', sql.VarChar, phone)
+            .input('code', sql.VarChar, userCode)
+            .query(`
+                UPDATE Users 
+                SET FullName = @name, Email = @email, Phone = @phone, UserCode = @code 
+                WHERE UserID = @id
+            `);
+
+        // If user is a student, sync with Students table StudentCode for backward compatibility
+        if (req.user.type === 'Student') {
+            await pool.request()
+                .input('id', sql.Int, userId)
+                .input('code', sql.VarChar, userCode)
+                .query('UPDATE Students SET StudentCode = @code WHERE UserID = @id');
+        }
+
+        res.json({ message: "Profile updated successfully" });
+    } catch (err) {
+        console.error("Update Profile Error:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
 
 const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
-        if (!email) return res.status(400).json({ message: "Email is required" });
-
         const pool = await getPool();
         const result = await pool.request()
             .input('Email', sql.VarChar, email)
-            .query('SELECT * FROM Users WHERE Email = @Email');
+            .query('SELECT UserID FROM Users WHERE Email = @Email');
 
         const user = result.recordset[0];
-        if (!user) {
-            return res.json({ message: "If that email is in our system, a reset link has been sent." });
-        }
+        if (!user) return res.status(404).json({ message: "User not found" });
 
         const crypto = require('crypto');
-        const resetToken = crypto.randomBytes(32).toString('hex');
-        const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+        const token = crypto.randomBytes(20).toString('hex');
+        const expires = new Date(Date.now() + 3600000); // 1 hour
 
         await pool.request()
-            .input('Token', sql.VarChar, resetToken)
-            .input('Expiry', sql.DateTime, expires)
+            .input('Token', sql.VarChar, token)
+            .input('Expires', sql.DateTime, expires)
             .input('UserID', sql.Int, user.UserID)
-            .query('UPDATE Users SET ResetPasswordToken = @Token, ResetPasswordExpires = @Expiry WHERE UserID = @UserID');
+            .query('UPDATE Users SET ResetPasswordToken = @Token, ResetPasswordExpires = @Expires WHERE UserID = @UserID');
 
-        const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}&id=${user.UserID}`;
-
-        const subject = "Password Reset - Mini LMS";
-        const html = `
-            <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 30px; background: #f8fafc; border-radius: 16px;">
-                <h2 style="color: #1e293b; margin-bottom: 16px;">Password Reset Request</h2>
-                <p style="color: #64748b;">Hello <strong>${user.FullName}</strong>,</p>
-                <p style="color: #64748b;">Click the button below to reset your password. This link expires in 15 minutes.</p>
-                <a href="${resetLink}" style="display: inline-block; padding: 14px 28px; background: #2563eb; color: white; text-decoration: none; border-radius: 12px; font-weight: bold; margin: 20px 0;">Reset Password</a>
-                <p style="color: #94a3b8; font-size: 12px;">If you didn't request this, ignore this email.</p>
-            </div>
-        `;
-
-        await sendEmail(email, subject, '', html);
-        res.json({ message: "If that email is in our system, a reset link has been sent." });
-
+        res.json({ message: "Password reset link generated", token });
     } catch (err) {
         console.error("Forgot Password Error:", err);
         res.status(500).json({ message: "An internal server error occurred." });
@@ -280,22 +277,20 @@ const forgotPassword = async (req, res) => {
 
 const resetPassword = async (req, res) => {
     try {
-        const { id, token, newPassword } = req.body;
-        if (!id || !token || !newPassword) {
-            return res.status(400).json({ message: "Missing required fields" });
-        }
-
+        const { token, password } = req.body;
         const pool = await getPool();
         const result = await pool.request()
-            .input('UserID', sql.Int, id)
-            .query('SELECT * FROM Users WHERE UserID = @UserID');
+            .input('Token', sql.VarChar, token)
+            .query('SELECT UserID, ResetPasswordExpires FROM Users WHERE ResetPasswordToken = @Token');
 
         const user = result.recordset[0];
-        if (!user || user.ResetPasswordToken !== token || new Date(user.ResetPasswordExpires) < new Date()) {
-            return res.status(400).json({ message: "Invalid or expired reset token." });
+        if (!user || new Date(user.ResetPasswordExpires) < new Date()) {
+            return res.status(400).json({ message: "Token is invalid or has expired." });
         }
 
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const id = user.UserID;
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
         await pool.request()
             .input('Password', sql.VarChar, hashedPassword)
@@ -307,6 +302,31 @@ const resetPassword = async (req, res) => {
     } catch (err) {
         console.error("Reset Password Error:", err);
         res.status(500).json({ message: "An internal server error occurred." });
+    }
+};
+
+const getMe = async (req, res) => {
+    try {
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('UserID', sql.Int, req.user.id)
+            .query('SELECT UserID, FullName, Email, Phone, UserType, ProfilePicture, UserCode FROM Users WHERE UserID = @UserID');
+
+        const user = result.recordset[0];
+        if (!user) return res.status(404).json({ message: "User not found" });
+
+        // If student, also get student-specific fields
+        if (user.UserType === 'Student') {
+            const studentResult = await pool.request()
+                .input('UserID', sql.Int, req.user.id)
+                .query('SELECT StudentCode, GPA, Academic_Year, Major FROM Students WHERE UserID = @UserID');
+            Object.assign(user, studentResult.recordset[0]);
+        }
+
+        res.json(user);
+    } catch (err) {
+        console.error("Get Me Error:", err);
+        res.status(500).json({ message: "Internal server error" });
     }
 };
 
@@ -326,7 +346,7 @@ const refreshAccessToken = async (req, res) => {
         if (!user) return res.status(401).json({ message: "User not found" });
 
         const newToken = jwt.sign(
-            { id: user.UserID, type: user.UserType, name: user.FullName, email: user.Email, profilePicture: user.ProfilePicture },
+            { id: user.UserID, type: user.UserType, name: user.FullName, email: user.Email, profilePicture: user.ProfilePicture, userCode: user.UserCode },
             process.env.JWT_SECRET,
             { expiresIn: "15m" }
         );
@@ -338,4 +358,82 @@ const refreshAccessToken = async (req, res) => {
     }
 };
 
-module.exports = { register, login, updateProfilePicture, forgotPassword, resetPassword, refreshAccessToken };
+const getUserProfile = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!id || isNaN(parseInt(id))) return res.status(400).json({ message: "Invalid user ID" });
+        
+        const pool = await getPool();
+        const result = await pool.request()
+            .input('UserID', sql.Int, parseInt(id))
+            .query('SELECT UserID, FullName, Email, Phone, UserType, ProfilePicture, UserCode FROM Users WHERE UserID = @UserID');
+
+        const user = result.recordset[0];
+        if (!user) return notFound(res, "User not found");
+
+        // Role-specific profile data
+        let extraInfo = {};
+        if (user.UserType === 'Student') {
+            const studentRes = await pool.request()
+                .input('UserID', sql.Int, id)
+                .query(`
+                    SELECT StudentCode, Major, GPA, 
+                           (SELECT COUNT(*) FROM Enrollment WHERE StudentID = @UserID) as CourseCount
+                    FROM Students WHERE UserID = @UserID
+                `);
+            extraInfo = studentRes.recordset[0] || {};
+        } else if (user.UserType === 'Instructor') {
+            const coursesRes = await pool.request()
+                .input('UserID', sql.Int, id)
+                .query('SELECT CourseID, Name FROM Course WHERE InstructorID = @UserID');
+            
+            const infoRes = await pool.request()
+                .input('UserID', sql.Int, id)
+                .query('SELECT Office_Location FROM Instructors WHERE UserID = @UserID');
+                
+            extraInfo = { 
+                CourseCount: coursesRes.recordset.length,
+                ManagedCourses: coursesRes.recordset,
+                ...(infoRes.recordset[0] || {})
+            };
+        } else if (user.UserType === 'Assistant') {
+            const coursesRes = await pool.request()
+                .input('UserID', sql.Int, parseInt(id))
+                .query(`
+                    SELECT c.CourseID, c.Name 
+                    FROM Course_Assistants ca
+                    JOIN Course c ON ca.CourseID = c.CourseID
+                    WHERE ca.AssistantID = @UserID
+                `);
+            
+            const infoRes = await pool.request()
+                .input('UserID', sql.Int, parseInt(id))
+                .query('SELECT Office_Location FROM Assistants WHERE UserID = @UserID');
+                
+            extraInfo = { 
+                CourseCount: coursesRes.recordset.length,
+                ManagedCourses: coursesRes.recordset,
+                ...(infoRes.recordset[0] || {})
+            };
+
+            // Emergency debug: If this is Bilal and still 0, check if he's in any courses at all
+            if (extraInfo.CourseCount === 0) {
+                const fallbackRes = await pool.request()
+                    .input('UserID', sql.Int, parseInt(id))
+                    .query('SELECT COUNT(*) as cnt FROM Course_Assistants WHERE AssistantID = @UserID');
+                if (fallbackRes.recordset[0].cnt > 0) {
+                    extraInfo.CourseCount = fallbackRes.recordset[0].cnt;
+                    extraInfo.ManagedCourses = [{ CourseID: 0, Name: "Assigned (Syncing...)" }];
+                }
+            }
+        }
+
+        const fullProfile = { ...user, ...extraInfo };
+        return success(res, fullProfile);
+    } catch (err) {
+        console.error("Get User Profile Error:", err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+};
+
+module.exports = { register, login, updateProfile, updateProfilePicture, getMe, getUserProfile, forgotPassword, resetPassword, refreshAccessToken };

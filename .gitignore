@@ -29,3 +29,4 @@ yarn-error.log*
 # Project specific
 LMS_Backend/uploads/*
 !LMS_Backend/uploads/.gitkeep
+LMS_Backend/.genkit/

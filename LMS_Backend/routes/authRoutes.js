@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { register, login, updateProfilePicture, forgotPassword, resetPassword, refreshAccessToken } = require('../controllers/authController');
+const { register, login, updateProfile, updateProfilePicture, getMe, getUserProfile, forgotPassword, resetPassword, refreshAccessToken } = require('../controllers/authController');
 const { verifyToken } = require('../middleware/authMiddleware');
 const { validate, registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } = require('../middleware/validation');
 const multer = require('multer');
@@ -23,7 +23,7 @@ const rateLimit = require('express-rate-limit');
 // Rate limiters
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 20, // limit each IP to 20 requests per windowMs
+    max: 1000, // increased for dev
     message: { message: "Too many requests from this IP, please try again after 15 minutes" }
 });
 
@@ -57,5 +57,8 @@ router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), for
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), resetPassword);
 router.post('/refresh-token', authLimiter, refreshAccessToken);
 router.post('/profile-picture', verifyToken, uploadLimiter, upload.single('profilePic'), updateProfilePicture);
+router.get('/me', verifyToken, getMe);
+router.get('/profile/:id', verifyToken, getUserProfile);
+router.put('/update-profile', verifyToken, updateProfile);
 
 module.exports = router;

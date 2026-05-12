@@ -8,7 +8,7 @@ const { success, error, badRequest, forbidden } = require('../utils/responseHand
  * POST /api/instructor/assignments OR /api/assistant/assignments
  */
 const createAssignment = async (req, res) => {
-    const { courseId, title, maxScore, deadline } = req.body;
+    const { courseId, title, maxScore, deadline, type } = req.body;
     if (!courseId || !title || !maxScore) return badRequest(res, "courseId, title, and maxScore are required.");
 
     try {
@@ -21,11 +21,12 @@ const createAssignment = async (req, res) => {
             .input('title', sql.VarChar, title)
             .input('maxScore', sql.Decimal(5, 2), maxScore)
             .input('deadline', sql.DateTime, deadline || null)
+            .input('type', sql.VarChar, type || 'Assignment')
             .input('createdBy', sql.Int, req.user.id)
-            .query(`INSERT INTO Assignment (CourseID, Title, Max_Score, Deadline, Created_By) 
-                    VALUES (@courseID, @title, @maxScore, @deadline, @createdBy)`);
+            .query(`INSERT INTO Assignment (CourseID, Title, Max_Score, Deadline, Type, Created_By) 
+                    VALUES (@courseID, @title, @maxScore, @deadline, @type, @createdBy)`);
 
-        await logAudit(req.user.id, 'CREATE_ASSIGNMENT', `Created assignment: ${title} for Course ${courseId}`, req.ip);
+        await logAudit(req.user.id, 'CREATE_ASSIGNMENT', `Created ${type || 'assignment'}: ${title} for Course ${courseId}`, req.ip);
         return success(res, { message: "Assignment created successfully" }, "Success", 201);
     } catch (err) {
         return error(res, "Failed to create assignment", 500, err);
@@ -37,7 +38,7 @@ const createAssignment = async (req, res) => {
  */
 const updateAssignment = async (req, res) => {
     const { id } = req.params;
-    const { title, maxScore, deadline } = req.body;
+    const { title, maxScore, deadline, type } = req.body;
 
     try {
         const pool = await getPool();
@@ -53,7 +54,8 @@ const updateAssignment = async (req, res) => {
             .input('title', sql.VarChar, title)
             .input('maxScore', sql.Decimal(5, 2), maxScore)
             .input('deadline', sql.DateTime, deadline || null)
-            .query(`UPDATE Assignment SET Title = @title, Max_Score = @maxScore, Deadline = @deadline WHERE AssignmentID = @id`);
+            .input('type', sql.VarChar, type || 'Assignment')
+            .query(`UPDATE Assignment SET Title = @title, Max_Score = @maxScore, Deadline = @deadline, Type = @type WHERE AssignmentID = @id`);
 
         return success(res, { message: "Assignment updated successfully" });
     } catch (err) {
@@ -74,8 +76,23 @@ const deleteAssignment = async (req, res) => {
         const hasAccess = await checkCourseAccess(pool, assignCheck.recordset[0].CourseID, req.user.id, req.user.type);
         if (!hasAccess) return forbidden(res, "You are not authorized to delete this assignment.");
 
-        await pool.request().input('id', sql.Int, id).query('DELETE FROM Assignment WHERE AssignmentID = @id');
-        return success(res, { message: "Assignment deleted successfully" });
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+        try {
+            const request = new sql.Request(transaction);
+            request.input('id', sql.Int, id);
+            
+            // Cascade delete submissions
+            await request.query('DELETE FROM Submission WHERE AssignmentID = @id');
+            // Delete the assignment
+            await request.query('DELETE FROM Assignment WHERE AssignmentID = @id');
+            
+            await transaction.commit();
+            return success(res, { message: "Assignment deleted successfully" });
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
     } catch (err) {
         return error(res, "Failed to delete assignment", 500, err);
     }

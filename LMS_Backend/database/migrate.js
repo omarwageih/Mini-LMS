@@ -211,7 +211,35 @@ const runMigrations = async () => {
                 WHERE cg.StudentID = e.StudentID AND cg.CourseID = e.CourseID
             );
         `);
-        console.log('✅ Migration 13: Course_Grades synced with Enrollment.');
+        // 14. Messages table
+        const checkMessages = await pool.request().query("SELECT * FROM sys.tables WHERE name = 'Messages'");
+        if (checkMessages.recordset.length === 0) {
+            console.log("Running Migration 14: Creating Messages table...");
+            await pool.request().query(`
+                CREATE TABLE Messages (
+                    MessageID INT IDENTITY(1,1) PRIMARY KEY,
+                    SenderID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID),
+                    ReceiverID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID),
+                    Content NVARCHAR(MAX) NOT NULL,
+                    IsRead BIT DEFAULT 0,
+                    CreatedAt DATETIME DEFAULT GETDATE()
+                );
+            `);
+        }
+        console.log('✅ Migration 14: Messages table ensured.');
+
+        // Migration 15: Grade Weighting in Course table
+        const checkCourseWeights = await pool.request().query("SELECT * FROM sys.columns WHERE object_id = OBJECT_ID('Course') AND name = 'AssignmentWeight'");
+        if (checkCourseWeights.recordset.length === 0) {
+            console.log("Running Migration 15: Adding weight columns to Course table...");
+            await pool.request().query(`
+                ALTER TABLE Course ADD AssignmentWeight INT DEFAULT 40;
+                ALTER TABLE Course ADD QuizWeight INT DEFAULT 20;
+                ALTER TABLE Course ADD AttendanceWeight INT DEFAULT 10;
+                ALTER TABLE Course ADD FinalWeight INT DEFAULT 30;
+            `);
+        }
+        console.log('✅ Migration 15: Grade weight columns added to Course table.');
 
         console.log('All migrations completed successfully.');
     } catch (err) {

@@ -12,7 +12,7 @@ const getDashboard = async (req, res) => {
         const userResult = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
-                SELECT u.FullName, u.Email, s.GPA, s.Academic_Year, s.Major, s.StudentCode
+                SELECT u.FullName, u.Email, u.Phone, s.GPA, s.Academic_Year, s.Major, s.StudentCode
                 FROM Users u
                 INNER JOIN Students s ON u.UserID = s.UserID
                 WHERE u.UserID = @userID
@@ -38,6 +38,7 @@ const getDashboard = async (req, res) => {
         return success(res, {
             fullName: student.FullName,
             email: student.Email,
+            phone: student.Phone,
             gpa: student.GPA,
             studentCode: student.StudentCode,
             academicYear: student.Academic_Year,
@@ -181,12 +182,40 @@ const getGrades = async (req, res) => {
         const result = await pool.request()
             .input('userID', sql.Int, userID)
             .query(`
-                SELECT c.CourseID, c.CourseID as courseId, c.Name AS CourseName, 
-                       cg.AttendanceTotal AS Attendance_Grade, 
-                       cg.QuizTotal AS Midterm_Grade, 
-                       cg.AssignmentTotal AS Practical_Grade, 
-                       cg.FinalGrade AS Final_Grade,
-                       (cg.AttendanceTotal + cg.QuizTotal + cg.AssignmentTotal + cg.FinalGrade) AS TotalScore
+                SELECT 
+                    c.CourseID, 
+                    c.CourseID as courseId, 
+                    c.Name AS CourseName, 
+                    -- Dynamic Attendance
+                    CAST(ISNULL((
+                        SELECT (COUNT(CASE WHEN att.Status IN ('Present', 'Late') THEN 1 END) * 100.0) / NULLIF(COUNT(*), 0)
+                        FROM Attendance att
+                        JOIN Lecture l ON att.LectureID = l.LectureID
+                        JOIN StudyWeek w ON l.Week_ID = w.Week_ID
+                        WHERE att.StudentID = cg.StudentID AND w.CourseID = cg.CourseID
+                    ), 0) AS DECIMAL(5,2)) AS Attendance_Grade,
+                    -- Dynamic Quizzes
+                    ISNULL((
+                        SELECT SUM(qr.Score) 
+                        FROM Quiz_Result qr 
+                        JOIN Quizzes q ON qr.QuizID = q.QuizID 
+                        WHERE qr.StudentID = cg.StudentID AND q.CourseID = cg.CourseID
+                    ), 0) AS Midterm_Grade, 
+                    -- Dynamic Assignments
+                    ISNULL((
+                        SELECT SUM(sub.Score) 
+                        FROM Submission sub 
+                        JOIN Assignment a ON sub.AssignmentID = a.AssignmentID 
+                        WHERE sub.StudentID = cg.StudentID AND a.CourseID = cg.CourseID
+                    ), 0) AS Practical_Grade, 
+                    cg.FinalGrade AS Final_Grade,
+                    -- Calculated Total Score
+                    (
+                        ISNULL((SELECT SUM(sub.Score) FROM Submission sub JOIN Assignment a ON sub.AssignmentID = a.AssignmentID WHERE sub.StudentID = cg.StudentID AND a.CourseID = cg.CourseID), 0) +
+                        ISNULL((SELECT SUM(qr.Score) FROM Quiz_Result qr JOIN Quizzes q ON qr.QuizID = q.QuizID WHERE qr.StudentID = cg.StudentID AND q.CourseID = cg.CourseID), 0) +
+                        CAST(ISNULL((SELECT (COUNT(CASE WHEN att.Status IN ('Present', 'Late') THEN 1 END) * 100.0) / NULLIF(COUNT(*), 0) FROM Attendance att JOIN Lecture l ON att.LectureID = l.LectureID JOIN StudyWeek w ON l.Week_ID = w.Week_ID WHERE att.StudentID = cg.StudentID AND w.CourseID = cg.CourseID), 0) AS DECIMAL(5,2)) +
+                        ISNULL(cg.FinalGrade, 0)
+                    ) AS TotalScore
                 FROM Course_Grades cg
                 INNER JOIN Course c ON cg.CourseID = c.CourseID
                 WHERE cg.StudentID = @userID
@@ -269,15 +298,33 @@ const getCalendarEvents = async (req, res) => {
  */
 const updateProfile = async (req, res) => {
     try {
-        const { fullName, email } = req.body;
+        const { fullName, email, phone, academicYear, major, gpa, studentCode } = req.body;
         const userID = req.user.id;
         const pool = await getPool();
 
+        // 1. Update Users table (Shared info)
         await pool.request()
             .input('userID', sql.Int, userID)
             .input('fullName', sql.VarChar, fullName)
             .input('email', sql.VarChar, email)
-            .query('UPDATE Users SET FullName = ISNULL(@fullName, FullName), Email = ISNULL(@email, Email) WHERE UserID = @userID');
+            .input('phone', sql.VarChar, phone)
+            .query('UPDATE Users SET FullName = ISNULL(@fullName, FullName), Email = ISNULL(@email, Email), Phone = ISNULL(@phone, Phone) WHERE UserID = @userID');
+
+        // 2. Update Students table (Role-specific info)
+        await pool.request()
+            .input('userID', sql.Int, userID)
+            .input('academicYear', sql.Int, academicYear)
+            .input('major', sql.VarChar, major)
+            .input('gpa', sql.Decimal(3,2), gpa)
+            .input('studentCode', sql.VarChar, studentCode)
+            .query(`
+                UPDATE Students 
+                SET Academic_Year = ISNULL(@academicYear, Academic_Year), 
+                    Major = ISNULL(@major, Major), 
+                    GPA = ISNULL(@gpa, GPA), 
+                    StudentCode = ISNULL(@studentCode, StudentCode) 
+                WHERE UserID = @userID
+            `);
 
         return success(res, { message: "Profile updated successfully" });
     } catch (err) {

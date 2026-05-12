@@ -9,7 +9,7 @@ const routeLabels = {
     '/assignments': 'Assignments',
     '/grades': 'Grades',
     '/calendar': 'Calendar',
-    '/profile': 'Profile',
+    '/profile': 'My Profile',
     '/instructor': 'Dashboard',
     '/instructor/students': 'Students',
     '/instructor/assistants': 'Assistants',

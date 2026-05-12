@@ -72,6 +72,7 @@ const createCourse = async (req, res) => {
 
 const deleteCourse = async (req, res) => {
     const courseId = req.params.id;
+    console.log(`[DEBUG] Attempting to delete course ${courseId} by user ${req.user.id}`);
     try {
         const pool = await getPool();
         // Only instructors can delete their own courses
@@ -83,13 +84,22 @@ const deleteCourse = async (req, res) => {
         try {
             const request = new sql.Request(transaction);
             request.input('courseId', sql.Int, courseId);
-            // Cascading deletes for tables without formal foreign key constraints
+            
+            // Manual cleanup for tables that might not have cascades or need specific order
             await request.query('DELETE FROM CourseMaterials WHERE CourseID = @courseId');
             await request.query('DELETE FROM Announcements WHERE CourseID = @courseId');
             await request.query('DELETE FROM DiscussionReplies WHERE PostID IN (SELECT PostID FROM DiscussionPosts WHERE CourseID = @courseId)');
             await request.query('DELETE FROM DiscussionPosts WHERE CourseID = @courseId');
             await request.query('DELETE FROM Course_Assistants WHERE CourseID = @courseId');
+            
+            // Fix: Cascade delete Submissions and Quiz Results which might block deletion
+            await request.query('DELETE FROM Submission WHERE AssignmentID IN (SELECT AssignmentID FROM Assignment WHERE CourseID = @courseId)');
+            await request.query('DELETE FROM Quiz_Result WHERE QuizID IN (SELECT QuizID FROM Quizzes WHERE CourseID = @courseId)');
+            
             await request.query('DELETE FROM Enrollment WHERE CourseID = @courseId');
+            await request.query('DELETE FROM Course_Grades WHERE CourseID = @courseId');
+            
+            // Delete the course itself - this will trigger cascades for StudyWeek -> Material, Quizzes -> Quiz_Result, Lecture -> Attendance
             await request.query('DELETE FROM Course WHERE CourseID = @courseId');
 
             await transaction.commit();
@@ -101,6 +111,29 @@ const deleteCourse = async (req, res) => {
         }
     } catch (err) {
         return error(res, "Failed to delete course", 500, err);
+    }
+};
+
+const updateCourse = async (req, res) => {
+    const courseId = req.params.id;
+    const { name, maxMarks, description } = req.body;
+    try {
+        const pool = await getPool();
+        // Only instructors can update their own courses
+        const check = await pool.request().input('cId', sql.Int, courseId).input('uId', sql.Int, req.user.id).query('SELECT 1 FROM Course WHERE CourseID = @cId AND InstructorID = @uId');
+        if (check.recordset.length === 0) return forbidden(res, "Unauthorized or course not found.");
+
+        await pool.request()
+            .input('cId', sql.Int, courseId)
+            .input('name', sql.VarChar, name)
+            .input('maxMarks', sql.Int, maxMarks)
+            .input('desc', sql.VarChar, description || '')
+            .query('UPDATE Course SET Name = @name, Max_Marks = @maxMarks, Description = @desc WHERE CourseID = @cId');
+
+        await logAudit(req.user.id, 'UPDATE_COURSE', `Updated course ID: ${courseId}`, req.ip);
+        return success(res, { message: "Course updated successfully" });
+    } catch (err) {
+        return error(res, "Failed to update course", 500, err);
     }
 };
 
@@ -168,8 +201,24 @@ const deleteWeek = async (req, res) => {
     const { id } = req.params;
     try {
         const pool = await getPool();
-        await pool.request().input('id', sql.Int, id).query('DELETE FROM StudyWeek WHERE Week_ID = @id');
-        return success(res, { message: "Week deleted" });
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+        try {
+            const request = new sql.Request(transaction);
+            request.input('id', sql.Int, id);
+            
+            // Delete Attendance for all lectures in this week
+            await request.query('DELETE FROM Attendance WHERE LectureID IN (SELECT LectureID FROM Lecture WHERE Week_ID = @id)');
+            
+            await request.query('DELETE FROM Material WHERE Week_ID = @id');
+            await request.query('DELETE FROM Lecture WHERE Week_ID = @id');
+            await request.query('DELETE FROM StudyWeek WHERE Week_ID = @id');
+            await transaction.commit();
+            return success(res, { message: "Week deleted" });
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
     } catch (err) { return error(res, "Failed to delete week", 500, err); }
 };
 
@@ -216,8 +265,10 @@ const addMaterial = async (req, res) => {
 
 const deleteMaterial = async (req, res) => {
     const { id } = req.params;
+    console.log(`[DEBUG] Attempting to delete material ${id} by user ${req.user.id}`);
     try {
         const pool = await getPool();
+
         const mat = await pool.request().input('id', sql.Int, id).query('SELECT FileURL FROM Material WHERE Material_ID = @id');
         if (mat.recordset.length > 0 && mat.recordset[0].FileURL) deleteFile(mat.recordset[0].FileURL);
         await pool.request().input('id', sql.Int, id).query('DELETE FROM Material WHERE Material_ID = @id');
@@ -227,19 +278,78 @@ const deleteMaterial = async (req, res) => {
 
 const addLecture = async (req, res) => {
     const { courseId, title, date, startTime, endTime, weekId } = req.body;
+    
+    // Log the input for debugging (visible in backend logs)
+    console.log(`[DEBUG] addLecture called by User ${req.user.id} (${req.user.type}) for Course ${courseId}`);
+
     try {
         const pool = await getPool();
-        await pool.request().input('t', sql.VarChar, title).input('d', sql.Date, date).input('s', sql.VarChar, startTime).input('e', sql.VarChar, endTime).input('cId', sql.Int, courseId).input('uId', sql.Int, req.user.id).input('wId', sql.Int, weekId).query('INSERT INTO Lecture (Title, Date, Start_Time, End_Time, CourseID, InstructorID, Week_ID) VALUES (@t, @d, @s, @e, @cId, @uId, @wId)');
-        return success(res, { message: "Lecture added" });
-    } catch (err) { return error(res, "Failed to add lecture", 500, err); }
+        
+        // Use defaults if not provided
+        const finalWeekId = (weekId === '' || weekId === null) ? null : weekId;
+        const finalStartTime = startTime || '09:00';
+        const finalEndTime = endTime || '11:00';
+
+        // Hardened INSERT using explicit casting to prevent database-level conversion errors
+        const query = `
+            INSERT INTO Lecture ([Title], [Date], [Start_Time], [End_Time], [CourseID], [InstructorID], [Week_ID])
+            SELECT 
+                CAST(@t AS VARCHAR(100)), 
+                CAST(@d AS DATE), 
+                CAST(@s AS TIME), 
+                CAST(@e AS TIME), 
+                @cId, 
+                ISNULL(InstructorID, 1), 
+                CAST(@wId AS INT)
+            FROM Course
+            WHERE CourseID = @cId
+        `;
+
+        const result = await pool.request()
+            .input('t', sql.VarChar, title)
+            .input('d', sql.VarChar, date)
+            .input('s', sql.VarChar, finalStartTime)
+            .input('e', sql.VarChar, finalEndTime)
+            .input('cId', sql.Int, parseInt(courseId))
+            .input('wId', sql.Int, finalWeekId)
+            .query(query);
+            
+        if (result.rowsAffected[0] === 0) {
+            return error(res, "Course not found or assignment failed", 404);
+        }
+
+        return success(res, { message: "Lecture added successfully" });
+    } catch (err) { 
+        console.error("[CRITICAL] addLecture failed:", {
+            message: err.message,
+            stack: err.stack,
+            sqlError: err.number || err.code,
+            inputs: { courseId, title, date, weekId }
+        });
+        return error(res, `Failed to add lecture: ${err.message}`, 500, err); 
+    }
 };
 
 const deleteLecture = async (req, res) => {
     const { id } = req.params;
     try {
         const pool = await getPool();
-        await pool.request().input('id', sql.Int, id).query('DELETE FROM Lecture WHERE LectureID = @id');
-        return success(res, { message: "Lecture deleted" });
+        const transaction = new sql.Transaction(pool);
+        await transaction.begin();
+        try {
+            const request = new sql.Request(transaction);
+            request.input('id', sql.Int, id);
+            
+            // Delete attendance before deleting lecture
+            await request.query('DELETE FROM Attendance WHERE LectureID = @id');
+            await request.query('DELETE FROM Lecture WHERE LectureID = @id');
+            
+            await transaction.commit();
+            return success(res, { message: "Lecture deleted" });
+        } catch (txErr) {
+            await transaction.rollback();
+            throw txErr;
+        }
     } catch (err) { return error(res, "Failed to delete lecture", 500, err); }
 };
 
@@ -360,7 +470,7 @@ const getCourseParticipants = async (req, res) => {
     try {
         const pool = await getPool();
         const result = await pool.request().input('cId', sql.Int, courseId).query(`
-            SELECT DISTINCT u.UserID, u.FullName, u.Email, u.UserType, s.Major, s.StudentCode,
+            SELECT DISTINCT u.UserID, u.FullName, u.Email, u.UserType, u.ProfilePicture, s.Major, s.StudentCode,
                    CASE WHEN u.UserType = 'Instructor' THEN 1 ELSE 0 END as IsInstructor,
                    CASE WHEN u.UserType = 'Assistant' THEN 1 ELSE 0 END as IsAssistant
             FROM Users u 
@@ -383,20 +493,69 @@ const getCourseGrades = async (req, res) => {
     try {
         console.log(`[DEBUG] getCourseGrades: Request for CourseID: ${courseId}`);
         const pool = await getPool();
-        console.log(`[DEBUG] getCourseGrades: DB Connected, executing query for CourseID: ${courseId}`);
+        
+        // Fetch course weights first
+        const courseRes = await pool.request()
+            .input('cId', sql.Int, courseId)
+            .query('SELECT AssignmentWeight, QuizWeight, AttendanceWeight, FinalWeight FROM Course WHERE CourseID = @cId');
+        
+        if (courseRes.recordset.length === 0) {
+            return error(res, "Course not found", 404);
+        }
+        
+        const weights = courseRes.recordset[0];
+
         const result = await pool.request().input('cId', sql.Int, courseId).query(`
-            SELECT u.FullName, u.Email, cg.GradeID, cg.StudentID, cg.CourseID,
-                   cg.AssignmentTotal,
-                   cg.QuizTotal,
-                   cg.AttendanceTotal,
-                   cg.FinalGrade,
-                   (ISNULL(cg.AssignmentTotal, 0) + ISNULL(cg.QuizTotal, 0) + ISNULL(cg.AttendanceTotal, 0) + ISNULL(cg.FinalGrade, 0)) AS TotalScore
+            SELECT 
+                u.FullName, 
+                u.Email, 
+                cg.GradeID, 
+                cg.StudentID, 
+                cg.CourseID,
+                -- Assignment Total (Normalized to weight)
+                ISNULL((
+                    SELECT (SUM(sub.Score) * 1.0 / NULLIF(SUM(a.Max_Score), 0)) * ${weights.AssignmentWeight}
+                    FROM Submission sub 
+                    JOIN Assignment a ON sub.AssignmentID = a.AssignmentID 
+                    WHERE sub.StudentID = cg.StudentID AND a.CourseID = cg.CourseID
+                ), 0) AS AssignmentScore,
+                -- Quiz Total (Normalized to weight)
+                ISNULL((
+                    SELECT (SUM(qr.Score) * 1.0 / NULLIF(SUM(q.Max_Score), 0)) * ${weights.QuizWeight}
+                    FROM Quiz_Result qr 
+                    JOIN Quizzes q ON qr.QuizID = q.QuizID 
+                    WHERE qr.StudentID = cg.StudentID AND q.CourseID = cg.CourseID
+                ), 0) AS QuizScore,
+                -- Attendance Percentage (Normalized to weight)
+                CAST(ISNULL((
+                    SELECT (COUNT(CASE WHEN att.Status IN ('Present', 'Late') THEN 1 END) * 1.0 / NULLIF(COUNT(*), 0)) * ${weights.AttendanceWeight}
+                    FROM Attendance att
+                    JOIN Lecture l ON att.LectureID = l.LectureID
+                    WHERE att.StudentID = cg.StudentID AND l.CourseID = cg.CourseID
+                ), 0) AS DECIMAL(5,2)) AS AttendanceScore,
+                -- Final Grade (Normalized to weight)
+                (ISNULL(cg.FinalGrade, 0) * 1.0 / 100.0) * ${weights.FinalWeight} AS FinalScore,
+                -- Raw values for detailed view
+                ISNULL((SELECT SUM(sub.Score) FROM Submission sub JOIN Assignment a ON sub.AssignmentID = a.AssignmentID WHERE sub.StudentID = cg.StudentID AND a.CourseID = cg.CourseID), 0) as RawAssignmentSum,
+                CAST(ISNULL((SELECT (COUNT(CASE WHEN att.Status IN ('Present', 'Late') THEN 1 END) * 100.0) / NULLIF(COUNT(*), 0) FROM Attendance att JOIN Lecture l ON att.LectureID = l.LectureID WHERE att.StudentID = cg.StudentID AND l.CourseID = cg.CourseID), 0) AS DECIMAL(5,2)) as RawAttendancePct,
+                -- Total Score
+                (
+                    ISNULL((SELECT (SUM(sub.Score) * 1.0 / NULLIF(SUM(a.Max_Score), 0)) * ${weights.AssignmentWeight} FROM Submission sub JOIN Assignment a ON sub.AssignmentID = a.AssignmentID WHERE sub.StudentID = cg.StudentID AND a.CourseID = cg.CourseID), 0) +
+                    ISNULL((SELECT (SUM(qr.Score) * 1.0 / NULLIF(SUM(q.Max_Score), 0)) * ${weights.QuizWeight} FROM Quiz_Result qr JOIN Quizzes q ON qr.QuizID = q.QuizID WHERE qr.StudentID = cg.StudentID AND q.CourseID = cg.CourseID), 0) +
+                    CAST(ISNULL((SELECT (COUNT(CASE WHEN att.Status IN ('Present', 'Late') THEN 1 END) * 1.0 / NULLIF(COUNT(*), 0)) * ${weights.AttendanceWeight} FROM Attendance att JOIN Lecture l ON att.LectureID = l.LectureID WHERE att.StudentID = cg.StudentID AND l.CourseID = cg.CourseID), 0) AS DECIMAL(5,2)) +
+                    ((ISNULL(cg.FinalGrade, 0) * 1.0 / 100.0) * ${weights.FinalWeight})
+                ) AS TotalScore
             FROM Course_Grades cg 
             INNER JOIN Users u ON cg.StudentID = u.UserID 
             WHERE cg.CourseID = @cId
+            ORDER BY u.FullName ASC
         `);
-        console.log(`[DEBUG] getCourseGrades: Query successful. Found ${result.recordset.length} students.`);
-        return success(res, result.recordset);
+        
+        // Return weights too
+        return success(res, { 
+            grades: result.recordset,
+            weights: weights
+        });
     } catch (err) { 
         console.error(`[CRITICAL ERROR] getCourseGrades failed for CourseID ${courseId}:`, {
             message: err.message,
@@ -420,11 +579,10 @@ const getCourseAttendance = async (req, res) => {
                    u.UserID as StudentID, u.FullName as StudentName, 
                    a.Status, a.Score
             FROM Lecture l
-            INNER JOIN StudyWeek w ON l.Week_ID = w.Week_ID
-            INNER JOIN Enrollment e ON w.CourseID = e.CourseID
+            INNER JOIN Enrollment e ON l.CourseID = e.CourseID
             INNER JOIN Users u ON e.StudentID = u.UserID
             LEFT JOIN Attendance a ON l.LectureID = a.LectureID AND u.UserID = a.StudentID
-            WHERE w.CourseID = @cId
+            WHERE l.CourseID = @cId
             ORDER BY l.Date DESC, u.FullName ASC
         `);
         return success(res, result.recordset);
@@ -467,11 +625,73 @@ const getCourseQuizzes = async (req, res) => {
     } catch (err) { return error(res, "Failed to fetch quizzes", 500, err); }
 };
 
+
+const unenrollParticipant = async (req, res) => {
+    const { courseId, userId } = req.params;
+    try {
+        const pool = await getPool();
+        // Check if removing an instructor (not allowed via this simple endpoint)
+        const roleCheck = await pool.request().input('uId', sql.Int, userId).query('SELECT UserType FROM Users WHERE UserID = @uId');
+        if (roleCheck.recordset.length > 0 && roleCheck.recordset[0].UserType === 'Instructor') {
+            return badRequest(res, "Cannot unenroll an Instructor from this console.");
+        }
+
+        await pool.request()
+            .input('cId', sql.Int, courseId)
+            .input('uId', sql.Int, userId)
+            .query('DELETE FROM Course_Grades WHERE CourseID = @cId AND StudentID = @uId');
+
+        await pool.request()
+            .input('cId', sql.Int, courseId)
+            .input('uId', sql.Int, userId)
+            .query('DELETE FROM Attendance WHERE CourseID = @cId AND StudentID = @uId');
+
+        await pool.request()
+            .input('cId', sql.Int, courseId)
+            .input('uId', sql.Int, userId)
+            .query('DELETE FROM Enrollment WHERE CourseID = @cId AND StudentID = @uId');
+
+        await logAudit(req.user.id, 'UNENROLL_STUDENT', `Removed student ID: ${userId} from course ID: ${courseId}`, req.ip);
+        return success(res, { message: "Participant unenrolled successfully" });
+    } catch (err) { return error(res, "Failed to unenroll participant", 500, err); }
+};
+
+const updateCourseWeights = async (req, res) => {
+    const { courseId, assignmentWeight, quizWeight, attendanceWeight, finalWeight } = req.body;
+    try {
+        // Validation: Sum must be 100
+        if (assignmentWeight + quizWeight + attendanceWeight + finalWeight !== 100) {
+            return badRequest(res, "Total weights must sum to exactly 100%");
+        }
+
+        const pool = await getPool();
+        await pool.request()
+            .input('cId', sql.Int, courseId)
+            .input('aw', sql.Int, assignmentWeight)
+            .input('qw', sql.Int, quizWeight)
+            .input('attw', sql.Int, attendanceWeight)
+            .input('fw', sql.Int, finalWeight)
+            .query(`
+                UPDATE Course 
+                SET AssignmentWeight = @aw, 
+                    QuizWeight = @qw, 
+                    AttendanceWeight = @attw, 
+                    FinalWeight = @fw
+                WHERE CourseID = @cId
+            `);
+        
+        return success(res, { message: "Grading weights updated successfully" });
+    } catch (err) { 
+        return error(res, "Failed to update weights", 500, err); 
+    }
+};
+
 module.exports = {
-    getCourses, getMyCourses, createCourse, deleteCourse,
-    getCourseContent, addWeek, deleteWeek, addMaterial, deleteMaterial, addLecture, deleteLecture,
+    getCourses, createCourse, updateCourse, deleteCourse, getMyCourses, getCourseContent,
+    addWeek, deleteWeek, addMaterial, deleteMaterial, addLecture, deleteLecture,
     getCourseMaterials, uploadCourseMaterial, deleteCourseMaterial,
     getAnnouncements, createAnnouncement, deleteAnnouncement,
-    getCourseParticipants, getCourseGrades,
-    getCourseAttendance, markAttendance, getCourseQuizzes
+    getCourseParticipants, getCourseGrades, unenrollParticipant,
+    getCourseAttendance, markAttendance, getCourseQuizzes,
+    updateCourseWeights
 };

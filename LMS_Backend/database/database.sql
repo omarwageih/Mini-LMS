@@ -300,6 +300,21 @@ CREATE TABLE DiscussionReplies (
 GO
 
 -- ---------------------------------
+-- Direct Messaging
+-- ---------------------------------
+CREATE TABLE Messages (
+    MessageID    INT           IDENTITY(1,1) PRIMARY KEY,
+    SenderID     INT           NOT NULL,
+    ReceiverID   INT           NOT NULL,
+    Content      NVARCHAR(MAX) NOT NULL,
+    IsRead       BIT           DEFAULT 0,
+    CreatedAt    DATETIME      DEFAULT GETDATE(),
+    FOREIGN KEY (SenderID)   REFERENCES Users(UserID),
+    FOREIGN KEY (ReceiverID) REFERENCES Users(UserID)
+);
+GO
+
+-- ---------------------------------
 -- Notifications
 -- ---------------------------------
 CREATE TABLE Notifications (
