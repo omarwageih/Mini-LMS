@@ -1,9 +1,9 @@
 <div align="center">
-  <img src="./assets/preview.png" alt="LMS Preview" width="800">
+  <img src="./assets/logo.png" alt="Mini LMS Logo" width="200">
   
-  # 🚀 Mini LMS & Discord Suite
+  # 🚀 Mini LMS
   
-  **A Comprehensive Learning Management System with Real-Time Engagement**
+  **A Modern, Lightweight Learning Management System**
   
   [![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
   [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
@@ -11,7 +11,7 @@
   [![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socketdotio&logoColor=white)](https://socket.io/)
   [![License](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-  *Empowering education through seamless integration of management tools and community communication.*
+  *Empowering education through a seamless, integrated management platform.*
 </div>
 
 ---
@@ -21,9 +21,9 @@
 - **👨‍🎓 Student Portal**: Track course progress, submit assignments, and receive real-time feedback.
 - **👨‍🏫 Instructor Dashboard**: Comprehensive course management, student oversight, and grading tools.
 - **🛡️ Assistant Access**: Specialized role for grading support and course activity management.
-- **💬 Real-Time Messaging**: Built-in instant messaging for students and staff.
-- **🔔 Smart Notifications**: Stay updated with instant alerts via WebSockets.
-- **🌓 Adaptive Theme**: Seamless switching between stunning Light and Dark modes.
+- **💬 Real-Time Messaging**: Built-in instant messaging for direct communication between students and staff.
+- **🔔 Smart Notifications**: Stay updated with instant alerts powered by WebSockets.
+- **🌓 Adaptive Theme**: Stunning dark and light modes for a comfortable learning experience.
 
 ---
 
@@ -39,18 +39,18 @@
 ### Frontend
 - **Framework**: React.js (Vite)
 - **State Management**: React Context API
-- **Styling**: Vanilla CSS (Modern Design System)
+- **Styling**: Modern CSS Design System
 - **Routing**: React Router
 
 ---
 
 ## 📂 Project Structure
 
-- **[`LMS_Backend`](./LMS_Backend)**: The core API server, database controllers, and business logic.
-- **[`mini-lms-frontend`](./mini-lms-frontend)**: The user interface built for performance and aesthetics.
+- **[`LMS_Backend`](./LMS_Backend)**: The core API server and business logic.
+- **[`mini-lms-frontend`](./mini-lms-frontend)**: The user interface designed for speed and clarity.
 
 > [!TIP]
-> For a deep dive into the file architecture, check out our [**STRUCTURE.md**](./STRUCTURE.md).
+> For a detailed breakdown of the file architecture, check out [**STRUCTURE.md**](./STRUCTURE.md).
 
 ---
 
