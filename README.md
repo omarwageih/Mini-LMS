@@ -7,84 +7,106 @@
   
   ---
   
-  [![Node.js](https://img.shields.io/badge/Runtime-Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-  [![React](https://img.shields.io/badge/Frontend-React-20232A?style=flat-square&logo=react&logoColor=61DAFB)](https://reactjs.org/)
-  [![SQL Server](https://img.shields.io/badge/Database-SQL%20Server-CC2927?style=flat-square&logo=microsoft-sql-server&logoColor=white)](https://www.microsoft.com/en-us/sql-server)
-  [![Socket.io](https://img.shields.io/badge/Real--time-Socket.io-010101?style=flat-square&logo=socketdotio&logoColor=white)](https://socket.io/)
-  [![Status](https://img.shields.io/badge/Status-Production--Ready-success?style=flat-square)](#)
+  [![Node.js](https://img.shields.io/badge/Runtime-Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+  [![React](https://img.shields.io/badge/Frontend-React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+  [![SQL Server](https://img.shields.io/badge/Database-SQL%20Server-CC2927?style=for-the-badge&logo=microsoft-sql-server&logoColor=white)](https://www.microsoft.com/en-us/sql-server)
+  [![Socket.io](https://img.shields.io/badge/Real--time-Socket.io-010101?style=for-the-badge&logo=socketdotio&logoColor=white)](https://socket.io/)
 
   *Bridging the gap between students, instructors, and assistants through a unified, glassmorphism-inspired digital environment.*
   
   ---
-  
-  ### 📱 System Preview
-  <img src="./assets/dashboard.png" alt="Dashboard Preview" width="850" style="border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+</div>
+
+## 🖼️ Interface Showcase
+
+<div align="center">
+  <table>
+    <tr>
+      <td width="50%"><img src="./assets/dashboard.png" alt="Dashboard"></td>
+      <td width="50%"><img src="./assets/courses.png" alt="Courses"></td>
+    </tr>
+    <tr>
+      <td align="center"><b>Command Center (Dashboard)</b></td>
+      <td align="center"><b>Module Portfolio</b></td>
+    </tr>
+    <tr>
+      <td width="50%"><img src="./assets/details.png" alt="Details"></td>
+      <td width="50%"><img src="./assets/messages.png" alt="Messages"></td>
+    </tr>
+    <tr>
+      <td align="center"><b>Deep Course Analytics</b></td>
+      <td align="center"><b>Real-Time Communication</b></td>
+    </tr>
+  </table>
 </div>
 
 ---
 
-## 💎 Core Experience
+## 🏛️ System Architecture
 
-### 🚀 **Empowered Learning**
-Every student gets a personalized workspace to track their **academic journey**. From instant grade notifications to seamless assignment submissions, the platform is built for speed.
+Our architecture is designed for **High Availability** and **Scalability**. Below is a high-level overview of the data flow and role-based interaction:
 
-### 🏛️ **Academic Governance**
-Instructors wield total control over their courses. Manage **Syllabi**, oversee **Assistant** performance, and handle **Student Enrollment** with a single click.
-
-### ⚡ **Real-Time Synergy**
-Powered by **WebSockets**, our system ensures you never miss a beat. Messages and notifications arrive instantly, keeping the academic community connected 24/7.
+```mermaid
+graph TD
+    User((User)) -->|Auth/JWT| API[Express API Gateway]
+    API -->|Validation| Controllers{Logic Controllers}
+    Controllers -->|Queries| SQL[(MS SQL Server)]
+    Controllers -->|Events| Socket[Socket.io Server]
+    Socket -->|Instant Notify| User
+    
+    subgraph Frontend
+        React[React Client] -->|Vite/HMR| User
+    end
+```
 
 ---
 
-## 🛠️ Architectural Blueprint
+## 💎 Core Experiences
 
-<details>
-<summary><b>📡 Backend Infrastructure</b></summary>
-<br>
-<blockquote>
-The backend is a robust Node.js cluster utilizing Express for API routing and SQL Server for enterprise-grade data persistence. 
-</blockquote>
+- **👨‍🎓 Personal Academic Journey**: Every student receives a tailored dashboard to track progress, upcoming deadlines, and academic achievements.
+- **👨‍🏫 Master Course Governance**: Instructors wield comprehensive tools for syllabus design, assistant oversight, and global student management.
+- **⚡ Real-Time Synergy**: Integrated WebSockets ensure that messages, grades, and notifications reach users in milliseconds—no refresh required.
+- **🌓 Adaptive Aesthetics**: A custom-crafted design system with full support for stunning **Dark** and **Light** modes, optimized for any environment.
 
-- **Security**: Hardened with JWT, Helmet, and Rate Limiting.
-- **Data**: Complex relational schema with cascaded deletions and automated migrations.
-- **Logic**: Clean controller-service pattern for maximum maintainability.
-</details>
+---
 
-<details>
-<summary><b>🎨 Frontend Excellence</b></summary>
-<br>
-<blockquote>
-A premium React application built on Vite, featuring a custom-crafted CSS design system with full Dark Mode support.
-</blockquote>
+## 🛡️ Technical Hardening
 
-- **Design**: Modern glassmorphism UI with smooth role-based navigation.
-- **State**: Global authentication and theme contexts.
-- **Performance**: Optimized asset loading and component memoization.
-</details>
+- **Advanced Security**: Implemented JWT-based stateless authentication, Helmet security headers, and global rate limiting to mitigate DDoS threats.
+- **Data Integrity**: Robust SQL schema with complex cascades and referential integrity ensuring zero data loss during course restructures.
+- **Performance**: Vite-powered frontend with code-splitting and asset optimization for sub-second load times.
 
 ---
 
 ## 📂 Project Navigation
 
-| Module | Purpose | Key Technologies |
+<details>
+<summary><b>📂 Repository Blueprint (Click to Expand)</b></summary>
+<br>
+
+| Module | Responsibility | Stack |
 | :--- | :--- | :--- |
-| **`LMS_Backend`** | API Services & DB | `Node.js`, `MS SQL`, `JWT` |
-| **`mini-lms-frontend`** | UI & User Experience | `React`, `Vite`, `Vanilla CSS` |
-| **`assets`** | Brand Identity | `Media`, `Logos` |
+| **`LMS_Backend`** | Data Persistence, Auth, Real-time Events | `Node.js`, `SQL Server`, `Socket.io` |
+| **`mini-lms-frontend`** | Interactive UI, State Management, Routing | `React`, `Context API`, `Vanilla CSS` |
+| **`assets`** | Brand Identity & Visual Documentation | `High-Res Screenshots`, `Logos` |
+
+</details>
 
 > [!IMPORTANT]
-> To understand the deep-level logic of each file, please refer to our comprehensive [**STRUCTURE.md**](./STRUCTURE.md).
+> For a line-by-line breakdown of every script in the project, consult our [**STRUCTURE.md**](./STRUCTURE.md).
 
 ---
 
-## ⚙️ Deployment Guide
+## 🚀 Deployment Guide
 
-### 1. Environment Prep
-Ensure you have **Node.js v16+** and **SQL Server** installed and running on your local machine.
+### 1. Preparation
+Ensure your environment satisfies the following:
+- **Node.js v16+**
+- **MS SQL Server** (SQLEXPRESS or Developer)
 
 ### 2. Ignition
 ```bash
-# Clone the vision
+# Clone the Vision
 git clone https://github.com/omarwageih/MUST-University-LMS.git
 
 # Ignite Backend
@@ -98,8 +120,18 @@ npm install && npm run dev
 
 ---
 
+## 🗺️ Project Roadmap
+
+- [x] **Phase 1**: Core Authentication & Role Management
+- [x] **Phase 2**: Course & Syllabus CRUD Operations
+- [x] **Phase 3**: Real-time Messaging & Notifications
+- [/] **Phase 4**: Advanced Grading Analytics & Performance Reports
+- [ ] **Phase 5**: Mobile Companion App (PWA)
+
+---
+
 <div align="center">
   <br>
   <sub><b>CSE 301 Database Project</b></sub><br>
-  <sub><i>Crafted with precision for the MUST University community.</i></sub>
+  <sub><i>Crafted with precision for the MUST University community. Built by ❤️.</i></sub>
 </div>
