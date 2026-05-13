@@ -58,7 +58,9 @@ const createNotification = async (userId, type, title, message = '', link = '') 
             };
             io.to(`user_${userId}`).emit('notification', notificationData);
         } catch (socketErr) {
-            console.error('Socket emit error:', socketErr.message);
+            if (process.env.NODE_ENV !== 'test') {
+                console.error('Socket emit error:', socketErr.message);
+            }
         }
     } catch (err) {
         console.error('Notification create error:', err.message);

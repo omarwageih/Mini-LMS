@@ -17,14 +17,15 @@ The "brain" of the application. It handles data storage, security, and logic.
 
 ---
 
-## 🎨 2. LMS Frontend (`/LMS_Frontend`)
+## 🎨 2. LMS Frontend (`/mini-lms-frontend`)
 The user interface that students and instructors see.
 
 - **`src/main.jsx`**: The starting point of the React app.
 - **`src/App.jsx`**: The "Router". It decides which page to show based on the URL and user role.
 - **`/src/pages/`**: Contains the actual screens (Dashboard, Login, Course Details, etc.).
 - **`/src/components/`**: Reusable parts of the UI like the Sidebar, Breadcrumbs, and Buttons.
-- **`/src/context/`**: Manages global settings like the Theme (Dark/Light mode) and User Auth state.
+- **`/src/services/`**: API service layer using Axios for backend communication.
+- **`/src/stores/`**: State management using Zustand.
 
 ---
 

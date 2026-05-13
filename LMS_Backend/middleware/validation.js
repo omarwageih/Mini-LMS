@@ -129,7 +129,9 @@ const validate = (schema) => (req, res, next) => {
         const errorMessages = issues.map(e => e.message);
         const displayError = errorMessages.length > 0 ? errorMessages[0] : 'Invalid input';
         
-        console.error("Zod Validation Error:", err);
+        if (process.env.NODE_ENV !== 'test') {
+            console.error("Zod Validation Error:", err);
+        }
         return res.status(400).json({ 
             message: displayError, 
             errors: errorMessages.length > 0 ? errorMessages : ['Invalid input'] 

@@ -16,8 +16,11 @@ jest.mock('../config/db', () => ({
         request: jest.fn().mockReturnValue({
             input: jest.fn().mockReturnThis(),
             query: jest.fn().mockImplementation((q) => {
-                if (q.includes('Submission WHERE AssignmentID')) return Promise.resolve({ recordset: [] });
-                return Promise.resolve({ recordset: [ { id: 1, name: 'Mock Data', CourseName: 'C1', TotalClasses: 10, AttendedClasses: 8, SubmissionID: 1, Status: 'Pending', courseCount: 5, pendingCount: 2 } ] });
+                if (q.includes('FROM Submission')) return Promise.resolve({ recordset: [] });
+                if (q.includes('SELECT COUNT(*) AS pendingCount')) return Promise.resolve({ recordset: [{ pendingCount: 2 }] });
+                if (q.includes('SELECT COUNT(*) AS courseCount')) return Promise.resolve({ recordset: [{ courseCount: 5 }] });
+                if (q.includes('FROM Assignment')) return Promise.resolve({ recordset: [{ CourseID: 1 }] });
+                return Promise.resolve({ recordset: [ { id: 1, FullName: 'Mock Student', name: 'Mock Data', CourseID: 1, CourseName: 'C1', TotalClasses: 10, AttendedClasses: 8, SubmissionID: 1, Status: 'Pending' } ] });
             })
         })
     })
