@@ -108,7 +108,7 @@ Ensure your environment satisfies the following:
 ### 2. Ignition
 ```bash
 # Clone the Vision
-git clone https://github.com/omarwageih/MUST-University-LMS.git
+git clone https://github.com/omarwageih/Mini-LMS.git
 
 # Ignite Backend
 cd LMS_Backend
